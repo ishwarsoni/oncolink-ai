@@ -1175,8 +1175,17 @@ def show_harmonization_section():
             import json
             harmonized_json = json.dumps(harmonized["data"], indent=2)
             
-            col_a, col_b = st.columns(2)
+            col_a, col_b, col_c = st.columns(3)
             with col_a:
+                st.download_button(
+                    "⬇ JSON",
+                    data=harmonized_json,
+                    file_name="harmonized_record.json",
+                    mime="application/json",
+                    use_container_width=True,
+                    key="download_record_json"
+                )
+            with col_b:
                 st.download_button(
                     "⬇ TXT",
                     data=harmonized_json,
@@ -1185,7 +1194,7 @@ def show_harmonization_section():
                     use_container_width=True,
                     key="download_record_txt"
                 )
-            with col_b:
+            with col_c:
                 try:
                     from fpdf import FPDF
                     pdf = FPDF(orientation="P", unit="mm", format="A4")
