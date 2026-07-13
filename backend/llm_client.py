@@ -61,12 +61,11 @@ import os
 
 def get_api_key():
     """
-    Get the NVIDIA API key from environment variables.
+    Get the NVIDIA API key from environment variables or Streamlit secrets.
     
     How this works:
-        1. python-dotenv (loaded in app.py) reads the .env file and sets
-           the values as environment variables (like system-wide settings).
-        2. os.getenv("NVIDIA_API_KEY") reads that value.
+        1. Checks Streamlit secrets first (for Streamlit Cloud deployments)
+        2. Falls back to os.getenv (for local .env files or sidebar input)
         3. If the key isn't set, we raise an error with helpful instructions.
     
     Why environment variables:
@@ -81,15 +80,27 @@ def get_api_key():
     Raises:
         ValueError: If the API key is not found in environment variables
     """
-    api_key = os.getenv("NVIDIA_API_KEY")
+    api_key = None
     
+    # Priority 1: Streamlit secrets (for Streamlit Cloud deployments)
+    try:
+        import streamlit as st
+        if "NVIDIA_API_KEY" in st.secrets:
+            api_key = st.secrets["NVIDIA_API_KEY"]
+    except Exception:
+        pass
+    
+    # Priority 2: Environment variables (local .env or sidebar input)
     if not api_key:
+        api_key = os.getenv("NVIDIA_API_KEY")
+    
+    if not api_key or api_key == "nvapi-your-key-here":
         raise ValueError(
-            "NVIDIA_API_KEY not found in environment variables.\n\n"
+            "NVIDIA_API_KEY not found.\n\n"
             "To fix this:\n"
-            "1. Open the .env file in the project root folder\n"
-            "2. Replace 'nvapi-your-key-here' with your actual NVIDIA API key\n"
-            "3. Restart the application\n\n"
+            "  - **Local**: Open the `.env` file and replace 'nvapi-your-key-here' with your actual key\n"
+            "  - **Streamlit Cloud**: In your app dashboard, set the secret `NVIDIA_API_KEY`\n"
+            "  - **Anywhere**: Enter your key in the sidebar input field\n\n"
             "Get a free key at: https://build.nvidia.com/"
         )
     

@@ -38,8 +38,8 @@ logs/
 scripts/__pycache__/
 data/__pycache__/
 
-# Streamlit
-.streamlit/
+# Streamlit (ignore actual secrets, keep config.toml and example)
+.streamlit/secrets.toml
 
 # Temp
 tmp/

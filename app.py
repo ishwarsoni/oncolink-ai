@@ -512,11 +512,21 @@ def create_sidebar():
         unsafe_allow_html=True
     )
     
-    env_key = os.getenv("NVIDIA_API_KEY")
-    if env_key == "nvapi-your-key-here":
-        env_key = None
-        
+    # Priority: st.secrets (Streamlit Cloud) > os.getenv (local .env) > sidebar input (fallback)
+    env_key = None
+    try:
+        if "NVIDIA_API_KEY" in st.secrets:
+            env_key = st.secrets["NVIDIA_API_KEY"]
+    except Exception:
+        pass
+    
     if not env_key:
+        env_key = os.getenv("NVIDIA_API_KEY")
+    
+    if env_key and env_key != "nvapi-your-key-here":
+        os.environ["NVIDIA_API_KEY"] = env_key
+        api_key = env_key
+    else:
         api_key_input = st.sidebar.text_input(
             "NVIDIA API Key",
             type="password",
@@ -530,8 +540,6 @@ def create_sidebar():
             api_key = api_key_input
         else:
             api_key = None
-    else:
-        api_key = env_key
     
     if api_key:
         st.sidebar.markdown(
@@ -899,7 +907,15 @@ def create_extraction_section():
         )
         
         # Check if API key is configured before showing the button
-        api_key = os.getenv("NVIDIA_API_KEY")
+        # Priority: st.secrets > os.getenv > sidebar input (already set in os.environ)
+        api_key = None
+        try:
+            if "NVIDIA_API_KEY" in st.secrets:
+                api_key = st.secrets["NVIDIA_API_KEY"]
+        except Exception:
+            pass
+        if not api_key:
+            api_key = os.getenv("NVIDIA_API_KEY")
         api_ready = api_key is not None and api_key != "nvapi-your-key-here" and len(api_key.strip()) > 0
         
         if not api_ready:
