@@ -509,9 +509,28 @@ def create_sidebar():
         unsafe_allow_html=True
     )
     
-    api_key = os.getenv("NVIDIA_API_KEY")
+    env_key = os.getenv("NVIDIA_API_KEY")
+    if env_key == "nvapi-your-key-here":
+        env_key = None
+        
+    if not env_key:
+        api_key_input = st.sidebar.text_input(
+            "NVIDIA API Key",
+            type="password",
+            placeholder="nvapi-...",
+            help="Get a free key at: https://build.nvidia.com/",
+            value=st.session_state.get("nvidia_api_key_input", "")
+        )
+        if api_key_input:
+            st.session_state["nvidia_api_key_input"] = api_key_input
+            os.environ["NVIDIA_API_KEY"] = api_key_input
+            api_key = api_key_input
+        else:
+            api_key = None
+    else:
+        api_key = env_key
     
-    if api_key and api_key != "nvapi-your-key-here":
+    if api_key:
         st.sidebar.markdown(
             '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.5rem 0.8rem;">'
             '<span style="color:#16a34a; font-weight:600; font-size:0.85rem;">✅ NVIDIA API connected</span>'
@@ -522,7 +541,7 @@ def create_sidebar():
         st.sidebar.markdown(
             '<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:0.5rem 0.8rem;">'
             '<span style="color:#dc2626; font-weight:600; font-size:0.85rem;">❌ API key not configured</span>'
-            '<br><span style="color:#94a3b8; font-size:0.75rem;">Add your key in .env file</span>'
+            '<br><span style="color:#94a3b8; font-size:0.75rem;">Enter your key above to enable AI features.</span>'
             '</div>',
             unsafe_allow_html=True
         )
@@ -878,17 +897,14 @@ def create_extraction_section():
         
         # Check if API key is configured before showing the button
         api_key = os.getenv("NVIDIA_API_KEY")
-        api_ready = api_key is not None and api_key != "nvapi-your-key-here"
+        api_ready = api_key is not None and api_key != "nvapi-your-key-here" and len(api_key.strip()) > 0
         
         if not api_ready:
             # API key is not configured
             st.warning(
                 "⚠️ NVIDIA API key not found.\n\n"
-                "To enable AI extraction:\n"
-                "1. Open the `.env` file in the project folder\n"
-                "2. Replace `nvapi-your-key-here` with your actual NVIDIA API key\n"
-                "3. Restart the application\n\n"
-                "Get a free key at: https://build.nvidia.com/"
+                "To enable AI extraction, please **enter your NVIDIA API Key in the sidebar input field**.\n\n"
+                "Get a free API key at: https://build.nvidia.com/"
             )
         
         # Create a centered column layout for the button
