@@ -1165,13 +1165,51 @@ def show_harmonization_section():
                 unsafe_allow_html=True
             )
             st.markdown(
-                '<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin-bottom:0.5rem;">📥 Export Harmonized Data</div>',
+                '<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin-bottom:0.5rem;">📥 Export Harmonized Record</div>',
                 unsafe_allow_html=True
             )
+            
+            import json
+            harmonized_json = json.dumps(harmonized["data"], indent=2)
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.download_button(
+                    "⬇ Download .txt",
+                    data=harmonized_json,
+                    file_name="harmonized_record.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
+            with col_b:
+                try:
+                    from fpdf import FPDF
+                    pdf = FPDF(orientation="P", unit="mm", format="A4")
+                    pdf.add_page()
+                    pdf.set_auto_page_break(auto=True, margin=15)
+                    pdf.set_font("Courier", "", 9)
+                    for line in harmonized_json.split("\n"):
+                        clean = line.encode("latin-1", errors="replace").decode("latin-1")
+                        pdf.cell(0, 4.5, clean, new_x="LMARGIN", new_y="NEXT")
+                    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+                    st.download_button(
+                        "⬇ Download .pdf",
+                        data=pdf_bytes,
+                        file_name="harmonized_record.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception:
+                    st.download_button(
+                        "⬇ Download .pdf",
+                        data=harmonized_json.encode("utf-8"),
+                        file_name="harmonized_record.txt",
+                        mime="text/plain",
+                        use_container_width=True,
+                    )
+            
             with st.expander("View Harmonized JSON"):
-                import json
-                formatted = json.dumps(harmonized["data"], indent=2)
-                st.code(formatted, language="json")
+                st.code(harmonized_json, language="json")
 
 
 def display_structured_clinical_data(data):
@@ -1255,42 +1293,49 @@ def display_structured_clinical_data(data):
         unsafe_allow_html=True
     )
     
-    # Create 3 columns for cancer info
+    # Diagnosis card (full width)
+    diag_value = data.get("diagnosis")
+    st.markdown(
+        f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:1rem 1.2rem; margin-bottom:0.8rem;">'
+        f'<div style="font-size:0.75rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.3rem;">Diagnosis</div>'
+        f'<div style="font-size:0.95rem; color:#0f2b4a; font-weight:500;">{diag_value if diag_value else "Not found"}</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+    
+    # Three smaller cards in a row
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        # Display diagnosis
-        value = data.get("diagnosis")
-        if value:
-            # Use a container for longer text (diagnosis can be multi-line)
-            st.markdown("**Diagnosis**")
-            st.info(value)
-        else:
-            st.metric(label="Diagnosis", value="Not found")
+        ct_value = data.get("cancer_type") or "Not found"
+        st.markdown(
+            f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:0.8rem 1rem; text-align:center;">'
+            f'<div style="font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Cancer Type</div>'
+            f'<div style="font-size:0.9rem; font-weight:600; color:#0f2b4a; margin-top:0.2rem;">{ct_value}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
     
     with col2:
-        # Display cancer type
-        value = data.get("cancer_type")
-        if value:
-            st.metric(label="Cancer Type", value=value)
-        else:
-            st.metric(label="Cancer Type", value="Not found")
-        
-        # Display cancer stage below cancer type
-        value = data.get("cancer_stage")
-        if value:
-            st.markdown("**Cancer Stage**")
-            st.info(value)
-        else:
-            st.metric(label="Cancer Stage", value="Not found")
+        cs_value = data.get("cancer_stage") or "Not found"
+        st.markdown(
+            f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:0.8rem 1rem; text-align:center;">'
+            f'<div style="font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Cancer Stage</div>'
+            f'<div style="font-size:0.9rem; font-weight:600; color:#0f2b4a; margin-top:0.2rem;">{cs_value}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
     
     with col3:
-        # Display ECOG score
-        value = data.get("ecog_score")
-        if value is not None:
-            st.metric(label="ECOG Score", value=str(value))
-        else:
-            st.metric(label="ECOG Score", value="Not found")
+        ecog_value = data.get("ecog_score")
+        ecog_display = str(ecog_value) if ecog_value is not None else "Not found"
+        st.markdown(
+            f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:0.8rem 1rem; text-align:center;">'
+            f'<div style="font-size:0.7rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">ECOG Score</div>'
+            f'<div style="font-size:0.9rem; font-weight:600; color:#0f2b4a; margin-top:0.2rem;">{ecog_display}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
     
     st.markdown("---")
     
