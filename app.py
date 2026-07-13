@@ -1464,46 +1464,16 @@ def display_structured_clinical_data(data):
 # SECTION 10: PLACEHOLDER SECTIONS
 # =============================================================================
 
-def create_placeholder_sections(processing_done):
+def create_status_panel(processing_done):
     extraction_done = st.session_state.get("extraction_done", False)
     harmonization_done = st.session_state.get("harmonization_done", False)
     harmonized = st.session_state.get("harmonized_data", {})
     conflicts = st.session_state.get("conflicts", {})
-    summary = st.session_state.get("summary", {})
-    
-    st.markdown('<div class="section-heading">📋 Patient Summary</div>',
-                unsafe_allow_html=True)
-    
-    if harmonization_done and summary.get("success") and summary.get("summary"):
-        st.code(summary["summary"], language="text")
-    elif extraction_done:
-        st.markdown(
-            '<div class="placeholder-box">'
-            '📊 Extraction complete. Click "Run Harmonization" above to generate the patient summary.'
-            '</div>',
-            unsafe_allow_html=True
-        )
-    elif processing_done:
-        st.markdown(
-            '<div class="placeholder-box">'
-            '📊 Documents processed. Click "Run AI Extraction" above.'
-            '</div>',
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            '<div class="placeholder-box">'
-            '📊 No data yet. Upload documents and click "Process Documents".'
-            '</div>',
-            unsafe_allow_html=True
-        )
-    
-    st.markdown("<br>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown('<div class="section-heading">⚠️ Warnings & Conflicts</div>',
+        st.markdown('<div class="section-heading">⚠️ Conflicts</div>',
                     unsafe_allow_html=True)
         
         if harmonization_done:
@@ -1527,67 +1497,28 @@ def create_placeholder_sections(processing_done):
                         )
                     st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.markdown(
-                    '<div class="placeholder-box">'
-                    '✅ No conflicts detected across documents.'
-                    '</div>',
-                    unsafe_allow_html=True
-                )
+                st.success("✅ No conflicts detected across documents.")
         elif extraction_done:
-            st.markdown(
-                '<div class="placeholder-box">'
-                '🔍 Run "Harmonization" to detect data conflicts across documents.'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.info('🔍 Run "Harmonization" to detect data conflicts.')
         elif processing_done:
-            st.markdown(
-                '<div class="placeholder-box">'
-                '🔄 Run AI extraction to identify potential data issues.'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.info('🔄 Run AI extraction to identify potential issues.')
         else:
-            st.markdown(
-                '<div class="placeholder-box">'
-                '✅ No warnings.'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.info("✅ No warnings.")
     
     with col2:
-        st.markdown('<div class="section-heading">📊 Structured Data</div>',
+        st.markdown('<div class="section-heading">📊 Status</div>',
                     unsafe_allow_html=True)
         
         if harmonization_done and harmonized.get("success"):
-            st.markdown(
-                f'<div class="placeholder-box">'
-                f'✅ {harmonized["documents_merged"]} document(s) harmonized. '
-                f'View the unified record above.'
-                f'</div>',
-                unsafe_allow_html=True
+            st.success(
+                f'✅ {harmonized["documents_merged"]} document(s) harmonized.'
             )
         elif extraction_done:
-            st.markdown(
-                '<div class="placeholder-box">'
-                '✅ Structured data extracted. Run "Harmonization" to merge all documents.'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.info('✅ Structured data extracted. Run "Harmonization" to merge.')
         elif processing_done:
-            st.markdown(
-                '<div class="placeholder-box">'
-                '⏳ Click "Run AI Extraction" to extract structured data.'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.info('⏳ Click "Run AI Extraction" to extract structured data.')
         else:
-            st.markdown(
-                '<div class="placeholder-box">'
-                '⏸️ Waiting for analysis.'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.info('⏸️ Waiting for analysis.')
 
 
 # =============================================================================
@@ -1709,8 +1640,8 @@ def main():
     st.markdown("<br>", unsafe_allow_html=True)
     st.divider()
     
-    # Step 10: Show the placeholder sections
-    create_placeholder_sections(processing_done)
+    # Step 10: Show status panel (non-duplicating summary)
+    create_status_panel(processing_done)
     
     # Step 11: Show footer
     create_footer()
