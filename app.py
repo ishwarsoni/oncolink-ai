@@ -1125,7 +1125,7 @@ def show_harmonization_section():
             col_a, col_b = st.columns(2)
             with col_a:
                 st.download_button(
-                    "⬇ Download .txt",
+                    "⬇ Download Summary (TXT)",
                     data=summary_text,
                     file_name="patient_summary.txt",
                     mime="text/plain",
@@ -1143,7 +1143,7 @@ def show_harmonization_section():
                         pdf.cell(0, 4.5, clean, new_x="LMARGIN", new_y="NEXT")
                     pdf_bytes = pdf.output(dest="S").encode("latin-1")
                     st.download_button(
-                        "⬇ Download .pdf",
+                        "⬇ Download Summary (PDF)",
                         data=pdf_bytes,
                         file_name="patient_summary.pdf",
                         mime="application/pdf",
@@ -1151,7 +1151,7 @@ def show_harmonization_section():
                     )
                 except Exception:
                     st.download_button(
-                        "⬇ Download .pdf",
+                        "⬇ Download Summary (TXT)",
                         data=summary_text.encode("utf-8"),
                         file_name="patient_summary.txt",
                         mime="text/plain",
@@ -1175,10 +1175,10 @@ def show_harmonization_section():
             col_a, col_b = st.columns(2)
             with col_a:
                 st.download_button(
-                    "⬇ Download .txt",
+                    "⬇ Download Record (JSON)",
                     data=harmonized_json,
-                    file_name="harmonized_record.txt",
-                    mime="text/plain",
+                    file_name="harmonized_record.json",
+                    mime="application/json",
                     use_container_width=True,
                 )
             with col_b:
@@ -1193,7 +1193,7 @@ def show_harmonization_section():
                         pdf.cell(0, 4.5, clean, new_x="LMARGIN", new_y="NEXT")
                     pdf_bytes = pdf.output(dest="S").encode("latin-1")
                     st.download_button(
-                        "⬇ Download .pdf",
+                        "⬇ Download Record (PDF)",
                         data=pdf_bytes,
                         file_name="harmonized_record.pdf",
                         mime="application/pdf",
@@ -1201,10 +1201,10 @@ def show_harmonization_section():
                     )
                 except Exception:
                     st.download_button(
-                        "⬇ Download .pdf",
+                        "⬇ Download Record (JSON)",
                         data=harmonized_json.encode("utf-8"),
-                        file_name="harmonized_record.txt",
-                        mime="text/plain",
+                        file_name="harmonized_record.json",
+                        mime="application/json",
                         use_container_width=True,
                     )
             
