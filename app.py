@@ -1130,6 +1130,7 @@ def show_harmonization_section():
                     file_name="patient_summary.txt",
                     mime="text/plain",
                     use_container_width=True,
+                    key="download_summary_txt"
                 )
             with col_b:
                 try:
@@ -1148,6 +1149,7 @@ def show_harmonization_section():
                         file_name="patient_summary.pdf",
                         mime="application/pdf",
                         use_container_width=True,
+                        key="download_summary_pdf"
                     )
                 except Exception:
                     st.download_button(
@@ -1156,6 +1158,7 @@ def show_harmonization_section():
                         file_name="patient_summary.txt",
                         mime="text/plain",
                         use_container_width=True,
+                        key="download_summary_txt_fallback"
                     )
         
         # Export
@@ -1180,6 +1183,7 @@ def show_harmonization_section():
                     file_name="harmonized_record.json",
                     mime="application/json",
                     use_container_width=True,
+                    key="download_record_json"
                 )
             with col_b:
                 try:
@@ -1198,6 +1202,7 @@ def show_harmonization_section():
                         file_name="harmonized_record.pdf",
                         mime="application/pdf",
                         use_container_width=True,
+                        key="download_record_pdf"
                     )
                 except Exception:
                     st.download_button(
@@ -1206,6 +1211,7 @@ def show_harmonization_section():
                         file_name="harmonized_record.json",
                         mime="application/json",
                         use_container_width=True,
+                        key="download_record_json_fallback"
                     )
             
             with st.expander("View Harmonized JSON"):
