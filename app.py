@@ -117,13 +117,16 @@ def setup_logging():
         - logging.getLogger() to create named loggers
     """
     
-    # Ensure logs directory exists
-    os.makedirs("logs", exist_ok=True)
+    # Ensure logs directory exists relative to the script location
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    logs_dir = os.path.join(base_dir, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    log_file = os.path.join(logs_dir, "application.log")
     
     # Configure the root logger
     logging.basicConfig(
         # Log file location
-        filename="logs/application.log",
+        filename=log_file,
         # Overwrite log on each restart (use 'a' to append)
         filemode="w",
         # Log INFO and above (ignore DEBUG)
