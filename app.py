@@ -117,6 +117,9 @@ def setup_logging():
         - logging.getLogger() to create named loggers
     """
     
+    # Ensure logs directory exists
+    os.makedirs("logs", exist_ok=True)
+    
     # Configure the root logger
     logging.basicConfig(
         # Log file location
