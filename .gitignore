@@ -1,0 +1,46 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual env
+venv/
+venv_*/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime*
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
+
+# Test artifacts
+scripts/__pycache__/
+data/__pycache__/
+
+# Streamlit
+.streamlit/
+
+# Temp
+tmp/
+temp/

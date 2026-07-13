@@ -1,0 +1,60 @@
+=== RAW LLM OUTPUT (without OncoLink) ===
+This is what the LLM returns when you directly ask it to extract data.
+Notice: inconsistent formatting, extra text, hallucinations, wrong structure.
+
+---
+
+Here is the extracted patient data:
+
+The patient's name is Rajesh Kumar and he is a 62 year old male.
+
+Diagnosis: umm let me check... I think this is lung cancer. Non-small cell type. Stage IIIA I believe. The TNM might be T3 N2 M0 but not 100% sure.
+
+Biomarkers: PD-L1 positive around 45% I think, EGFR negative, ALK negative as well.
+
+Current medications: He is on Pembrolizumab 200mg IV every 3 weeks and also takes Ondansetron 8mg as needed for nausea.
+
+Previous treatment: He had chemoradiation with Carboplatin and Paclitaxel which finished in January 2024.
+
+ECOG performance status is probably 1.
+
+For follow up he needs immunotherapy every 3 weeks and CT scans every 3 months. Also watch for immune side effects.
+
+Next steps would be to continue the current treatment plan and do imaging in 12 weeks.
+
+{
+  "patient": "Rajesh Kumar",
+  "years_old": "sixty two",
+  "sex": "M",
+  "main_diagnosis": "Non small cell lung carcinoma",
+  "cancer_subtype": "NSCLC",
+  "tumor_stage": "stage iiia",
+  "tnm": "t3 n1 m0",
+  "ecog": "ECOG 1",
+  "biomarker_list": [
+    {"biomarker": "PD-L1", "result": "45% positive"},
+    {"marker": "EGFR", "reading": "negative"},
+    {"name": "ALK", "val": "-"}
+  ],
+  "medicine": "Pembrolizumab 200mg",
+  "history": "Chemoradiation with Carbo + Taxol",
+  "plan_followup": "CT every 3 months",
+  "next_actions": "Continue treatment"
+}
+
+Please let me know if you need any changes or have questions about the extracted data.
+
+=== VERSUS ===
+
+=== ONCOLINK OUTPUT (after pipeline) ===
+The same data after JSON cleaning, Pydantic validation, normalization, 
+and structured formatting. Every field is consistent, validated, and normalized.
+
+Patient: Rajesh Kumar | Age: 62 | Gender: Male
+Diagnosis: Lung cancer - Non-Small Cell Lung Carcinoma (NSCLC), Stage IIIA (T3 N2 M0)
+ECOG: 1
+Biomarkers: [PD-L1: 45%, EGFR: Negative, ALK: Negative]
+Medications: Pembrolizumab 200mg IV every 3 weeks, Ondansetron 8mg as needed
+Previous Tx: Concurrent chemoradiation (Carboplatin + Paclitaxel) completed January 2024
+Follow-up: Next cycle of immunotherapy in 2 weeks, CT chest every 3 months
+Next Steps: Continue pembrolizumab maintenance, Repeat imaging in 12 weeks

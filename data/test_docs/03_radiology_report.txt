@@ -1,0 +1,51 @@
+RADIOLOGY REPORT
+Department of Radiology
+Medicare Imaging Centre, Mumbai
+
+Patient: Sunita Sharma
+DOB: 15/07/1968 (Age: 57)
+MRN: MIC-2026-0892
+Exam Date: 25-Jun-2026
+
+REFERRING PHYSICIAN: Dr. Priya Mehta
+
+EXAMINATION: CT Chest with IV Contrast (Follow-up)
+
+CLINICAL INDICATION:
+Follow-up scan for NSCLC Stage IIIA (T3 N1 M0), EGFR mutant, on Osimertinib. Baseline scan: 10-Apr-2026. Patient completed 10 weeks of Osimertinib 80 mg OD.
+
+TECHNIQUE:
+Multi-detector CT chest acquired after administration of 80 mL Iohexol IV contrast. Axial, coronal and sagittal reconstructions.
+
+FINDINGS:
+LUNG PARENCHYMA:
+Primary right upper lobe mass now measures 2.0 x 1.4 cm (previously 4.2 x 3.1 cm) - significant reduction of approximately 78%.
+
+LYMPH NODES:
+Station 4R node: 0.8 cm (previous 1.6 cm) - reduced in size
+Station 7 node: 0.6 cm (previous 1.2 cm) - reduced in size
+
+PLEURA:
+No pleural effusion. No pleural thickening.
+
+BONES:
+No lytic or blastic lesions detected.
+
+LIVER:
+No metastatic lesions. Normal appearance.
+
+ADRENALS:
+Normal appearance bilaterally.
+
+IMPRESSION:
+1. Partial response to treatment as per RECIST 1.1 criteria
+2. Approximately 78% reduction in primary tumor size
+3. Interval reduction in mediastinal lymphadenopathy
+4. No new metastatic lesions
+
+RECOMMENDATION:
+Continue current treatment. Next follow-up CT chest in 3 months.
+
+Reported by:
+Dr. Arvind Sharma, MD (Radiology)
+Digitally signed: 26-Jun-2026

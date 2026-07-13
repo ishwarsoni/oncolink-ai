@@ -1,0 +1,37 @@
+Oncology Progress Note
+Date: 2024-06-20
+Hospital: City Cancer Institute
+MRN: CC-2024-0782
+
+Patient Information:
+Name: Rajesh Kumar
+Age: 62 years
+Gender: Male
+
+Diagnosis:
+Non-Small Cell Lung Carcinoma (NSCLC), Stage IIIA
+ECOG Performance Status: 1
+
+Biomarkers:
+PD-L1: 60% positive
+EGFR: Negative
+ALK: Negative
+
+Current Medications:
+- Pembrolizumab 200mg IV every 3 weeks
+- Ondansetron 8mg as needed
+
+Treatment Response:
+Patient has completed 6 cycles of pembrolizumab.
+CT scan shows stable disease with 15% reduction in primary tumor size.
+No new lesions detected.
+
+Follow-up Plan:
+- Continue pembrolizumab maintenance every 3 weeks
+- CT chest in 3 months
+- Thyroid function tests monthly
+
+Next Steps:
+- Continue current immunotherapy regimen
+- Schedule next imaging in 12 weeks
+- Monitor for immune-related adverse events including thyroiditis

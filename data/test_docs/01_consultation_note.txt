@@ -1,0 +1,38 @@
+Dr. Mehta's Oncology Clinic
+Date: 2026-04-15
+
+Patient: Sunita Sharma
+Age: 58 years
+Gender: Female
+MRN: ONC-2026-00421
+
+CHIEF COMPLAINT: Persistent cough for 6 weeks, breathlessness
+
+HISTORY OF PRESENTING ILLNESS:
+55-year-old female, chronic smoker (30 pack-years), presented with dry cough and progressive dyspnea over 6 weeks. No hemoptysis. Reports unintentional weight loss of 5 kg in last 2 months. Fatigue over last 3 weeks.
+
+IMAGING:
+CT chest dated 10-Apr-2026 shows a 4.2 x 3.1 cm mass in right upper lobe with ipsilateral mediastinal lymph node involvement (station 4R, 7). No distant metastases on PET-CT.
+
+BIOPSY:
+CT-guided biopsy of RUL mass on 12-Apr-2026.
+Histopathology: Adenocarcinoma, TTF-1 positive
+Molecular: EGFR exon 19 deletion detected. ALK negative. ROS1 negative.
+PD-L1 TPS: 60%
+
+DIAGNOSIS:
+Stage IIIA (T3 N1 M0) Non-Small Cell Lung Cancer - Adenocarcinoma, EGFR mutant
+
+ECOG Performance Status: 1
+
+MANAGEMENT PLAN:
+Start Osimertinib 80 mg once daily. CT re-evaluation after 8 weeks. Monitor for rash and diarrhea. Smoking cessation counseling. Refer to dietitian for weight loss.
+
+PRESCRIPTION:
+Tab Osimertinib 80 mg - 1 OD for 28 days
+Tab Ondansetron 8 mg - SOS for nausea
+
+FOLLOW UP:
+4 weeks for toxicity assessment and labs.
+
+Dr. Priya Mehta, MD (Medical Oncology)

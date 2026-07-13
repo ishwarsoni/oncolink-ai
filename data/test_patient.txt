@@ -1,0 +1,36 @@
+Oncology Consultation Report
+Date: 2024-03-15
+Hospital: City Cancer Institute
+MRN: CC-2024-0782
+
+Patient Information:
+Name: Rajesh Kumar
+Age: 62 years
+Gender: Male
+
+Diagnosis:
+Lung cancer - Non-Small Cell Lung Carcinoma (NSCLC), Stage IIIA (T3 N2 M0)
+ECOG Performance Status: 1
+
+Biomarkers:
+PD-L1: 45% positive
+EGFR: Negative
+ALK: Negative
+
+Current Medications:
+- Pembrolizumab 200mg IV every 3 weeks
+- Ondansetron 8mg as needed
+
+Previous Treatment:
+- Concurrent chemoradiation (Carboplatin + Paclitaxel) completed January 2024
+
+Follow-up Plan:
+- Next cycle of immunotherapy in 2 weeks
+- CT chest every 3 months
+- Monitor for immune-related adverse events
+
+Next Steps:
+- Continue pembrolizumab maintenance
+- Repeat imaging in 12 weeks
+- Pulmonary function test before next cycle
+- Consider clinical trial options if progression
