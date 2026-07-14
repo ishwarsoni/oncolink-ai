@@ -1355,6 +1355,16 @@ def create_status_panel(processing_done):
                 high = sum(1 for c in conflict_list if c["severity"] == "high")
                 med = len(conflict_list) - high
                 st.info(f"⚠️ {len(conflict_list)} conflict(s) found — {high} high, {med} medium")
+                for conflict in conflict_list:
+                    sev = conflict.get("severity", "medium")
+                    icon = "🔴" if sev == "high" else "🟡"
+                    desc = conflict.get("description", conflict.get("field", "Unknown"))
+                    st.markdown(f"{icon} {desc}")
+                    sources = conflict.get("sources", [])
+                    for doc, val in sources:
+                        doc_short = doc.split("\\")[-1].split("/")[-1]
+                        st.markdown(f"📄 {doc_short} → {val}")
+                    st.markdown("---")
             else:
                 st.success("✅ No conflicts detected across documents.")
         elif extraction_done:
