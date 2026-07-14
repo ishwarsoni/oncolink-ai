@@ -1019,9 +1019,6 @@ def create_extraction_section():
 
 
 def show_harmonization_section():
-    """
-    Phase 5: Harmonization, conflict detection, and summary generation.
-    """
     st.markdown(
         '<div style="display:flex; align-items:center; gap:0.5rem; margin-top:2rem;">'
         '<span style="font-size:1.3rem;">🔗</span>'
@@ -1033,201 +1030,67 @@ def show_harmonization_section():
         '<p style="color:#64748b; font-size:0.9rem; margin-top:-0.3rem;">Merge data from all documents and generate a unified patient summary.</p>',
         unsafe_allow_html=True
     )
-    
-    harmonization_done = st.session_state.get("harmonization_done", False)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        harmonize_clicked = st.button(
-            "🔄 Run Harmonization",
-            type="primary",
-            use_container_width=True,
-            disabled=harmonization_done
-        )
-    
+
+    harmonize_clicked = st.button("🔄 Run Harmonization", type="primary", use_container_width=True)
+
+    h = st.session_state.get("harmonized_data", {})
+    c = st.session_state.get("conflicts", {})
+    s = st.session_state.get("summary", {})
+
     if harmonize_clicked:
         with st.spinner("Harmonizing data across documents..."):
             per_doc_results = st.session_state.get("per_doc_results", [])
-            
-            harmonized = harmonize_extractions(per_doc_results)
-            st.session_state["harmonized_data"] = harmonized
-            
-            conflicts = detect_conflicts(per_doc_results)
-            st.session_state["conflicts"] = conflicts
-            
-            if harmonized["success"]:
-                summary = generate_patient_summary(
-                    harmonized["data"],
-                    harmonized.get("field_sources"),
-                    conflicts.get("conflicts", [])
-                )
-                st.session_state["summary"] = summary
-            
+            h = harmonize_extractions(per_doc_results)
+            c = detect_conflicts(per_doc_results)
+            s = h["success"] and generate_patient_summary(h["data"], h.get("field_sources"), c.get("conflicts", [])) or {}
+            st.session_state["harmonized_data"] = h
+            st.session_state["conflicts"] = c
+            st.session_state["summary"] = s
             st.session_state["harmonization_done"] = True
-        
-        if harmonized["success"]:
-            st.success(f"✅ Harmonization complete! {harmonized['documents_merged']} document(s) merged.")
-        else:
-            st.error("❌ Harmonization failed.")
-    
-    # Display results
-    if harmonization_done:
-        harmonized = st.session_state.get("harmonized_data", {})
-        conflicts = st.session_state.get("conflicts", {})
-        summary = st.session_state.get("summary", {})
-        
-        # Harmonized data
-        if harmonized.get("success") and harmonized.get("data"):
-            with st.expander("📊 Harmonized Patient Record", expanded=True):
-                display_structured_clinical_data(harmonized["data"])
-        
-        # Conflicts — full detail view
-        conflict_list = conflicts.get("conflicts", [])
-        if conflict_list:
-            high_count = sum(1 for c in conflict_list if c["severity"] == "high")
-            st.markdown(
-                f'<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin:1rem 0 0.5rem 0;">⚠️ Conflicts Detected ({len(conflict_list)})</div>',
-                unsafe_allow_html=True
-            )
-            for c in conflict_list:
-                severity_icon = "🔴" if c["severity"] == "high" else "🟡"
-                st.markdown(
-                    f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid {"#dc2626" if c["severity"] == "high" else "#eab308"}; border-radius:8px; padding:0.8rem 1rem; margin-bottom:0.6rem;">'
-                    f'<div style="font-weight:600; color:#0f2b4a; font-size:0.9rem; margin-bottom:0.4rem;">{severity_icon} {c["description"]}</div>',
-                    unsafe_allow_html=True
-                )
-                for doc, val in c["sources"]:
-                    st.markdown(
-                        f'<div style="display:flex; gap:0.5rem; font-size:0.85rem; padding:0.2rem 0; color:#475569;">'
-                        f'<span style="font-weight:500; color:#64748b; min-width:120px;">📄 {doc}</span>'
-                        f'<span style="color:#94a3b8;">→</span>'
-                        f'<span style="color:#0f2b4a;">{val}</span>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-                st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(
-                '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:1.2rem; text-align:center; margin:1rem 0;">'
-                '<span style="color:#16a34a; font-weight:500;">All documents agree on shared fields. No conflicts detected.</span>'
-                '</div>',
-                unsafe_allow_html=True
-            )
+        if h["success"]:
+            st.success(f"✅ Harmonization complete! {h['documents_merged']} document(s) merged.")
 
-        # Patient summary
-        if summary.get("success") and summary.get("summary"):
-            st.markdown(
-                '<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin:1.5rem 0 0.5rem 0;">📋 Patient Summary</div>',
-                unsafe_allow_html=True
-            )
-            st.code(summary["summary"], language="text")
-            summary_text = summary["summary"]
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.download_button(
-                    "⬇ TXT",
-                    data=summary_text,
-                    file_name="patient_summary.txt",
-                    mime="text/plain",
-                    use_container_width=True,
-                    key="download_summary_txt"
-                )
-            with col_b:
-                try:
-                    from fpdf import FPDF
-                    pdf = FPDF(orientation="P", unit="mm", format="A4")
-                    pdf.add_page()
-                    pdf.set_auto_page_break(auto=True, margin=15)
-                    pdf.set_font("Courier", "", 9)
-                    for line in summary_text.split("\n"):
-                        clean = line.encode("latin-1", errors="replace").decode("latin-1")
-                        pdf.cell(0, 4.5, clean, new_x="LMARGIN", new_y="NEXT")
-                    pdf_bytes = pdf.output(dest="S").encode("latin-1")
-                    st.download_button(
-                        "⬇ PDF",
-                        data=pdf_bytes,
-                        file_name="patient_summary.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                        key="download_summary_pdf"
-                    )
-                except Exception:
-                    st.download_button(
-                        "⬇ PDF",
-                        data=summary_text,
-                        file_name="patient_summary.txt",
-                        mime="text/plain",
-                        use_container_width=True,
-                        key="download_summary_pdf_fallback"
-                    )
-        
-        # Export
-        if harmonized.get("success") and harmonized.get("data"):
-            st.markdown(
-                '<div style="height:1px; background:linear-gradient(90deg,transparent,#e2e8f0,transparent); margin:1.5rem 0 1rem 0;"></div>',
-                unsafe_allow_html=True
-            )
-            st.markdown(
-                '<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin-bottom:0.5rem;">📥 Export Harmonized Record</div>',
-                unsafe_allow_html=True
-            )
-            
-            import json
-            harmonized_json = json.dumps(harmonized["data"], indent=2)
-            
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                st.download_button(
-                    "⬇ JSON",
-                    data=harmonized_json,
-                    file_name="harmonized_record.json",
-                    mime="application/json",
-                    use_container_width=True,
-                    key="download_record_json"
-                )
-            with col_b:
-                st.download_button(
-                    "⬇ TXT",
-                    data=harmonized_json,
-                    file_name="harmonized_record.txt",
-                    mime="text/plain",
-                    use_container_width=True,
-                    key="download_record_txt"
-                )
-            with col_c:
-                try:
-                    from fpdf import FPDF
-                    pdf = FPDF(orientation="P", unit="mm", format="A4")
-                    pdf.add_page()
-                    pdf.set_auto_page_break(auto=True, margin=15)
-                    pdf.set_font("Courier", "", 9)
-                    for line in harmonized_json.split("\n"):
-                        clean = line.encode("latin-1", errors="replace").decode("latin-1")
-                        pdf.cell(0, 4.5, clean, new_x="LMARGIN", new_y="NEXT")
-                    pdf_bytes = pdf.output(dest="S").encode("latin-1")
-                    st.download_button(
-                        "⬇ PDF",
-                        data=pdf_bytes,
-                        file_name="harmonized_record.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                        key="download_record_pdf"
-                    )
-                except Exception:
-                    st.download_button(
-                        "⬇ PDF",
-                        data=harmonized_json,
-                        file_name="harmonized_record.txt",
-                        mime="text/plain",
-                        use_container_width=True,
-                        key="download_record_pdf_fallback"
-                    )
-            
-            with st.expander("View Harmonized JSON"):
-                st.code(harmonized_json, language="json")
+    if not h.get("success"):
+        return
+
+    with st.expander("📊 Harmonized Patient Record", expanded=True):
+        display_structured_clinical_data(h["data"], show_export=False)
+
+    if s and s.get("success") and s.get("summary"):
+        st.markdown('<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin:1.5rem 0 0.5rem 0;">📋 Patient Summary</div>', unsafe_allow_html=True)
+        st.code(s["summary"], language="text")
+        txt = s["summary"]
+        try:
+            from fpdf import FPDF
+            pdf = FPDF(orientation="P", unit="mm", format="A4")
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_font("Courier", "", 9)
+            for line in txt.split("\n"):
+                pdf.cell(0, 4.5, line.encode("latin-1", errors="replace").decode("latin-1"), new_x="LMARGIN", new_y="NEXT")
+            st.download_button("⬇ PDF", data=pdf.output(dest="S").encode("latin-1"), file_name="patient_summary.pdf", mime="application/pdf", key="dl_ps_pdf")
+        except Exception:
+            st.download_button("⬇ PDF", data=txt, file_name="patient_summary.txt", mime="text/plain", key="dl_ps_fb")
+
+    st.markdown('<div style="height:1px; background:linear-gradient(90deg,transparent,#e2e8f0,transparent); margin:1.5rem 0 1rem 0;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin-bottom:0.5rem;">📥 Export Harmonized Record</div>', unsafe_allow_html=True)
+    import json; j = json.dumps(h["data"], indent=2)
+    try:
+        from fpdf import FPDF
+        pdf = FPDF(orientation="P", unit="mm", format="A4")
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Courier", "", 9)
+        for line in j.split("\n"):
+            pdf.cell(0, 4.5, line.encode("latin-1", errors="replace").decode("latin-1"), new_x="LMARGIN", new_y="NEXT")
+        st.download_button("⬇ PDF", data=pdf.output(dest="S").encode("latin-1"), file_name="harmonized_record.pdf", mime="application/pdf", key="dl_hr_pdf")
+    except Exception:
+        st.download_button("⬇ PDF", data=j, file_name="harmonized_record.txt", mime="text/plain", key="dl_hr_fb")
+    with st.expander("View Harmonized JSON"):
+        st.code(j, language="json")
 
 
-def display_structured_clinical_data(data):
+def display_structured_clinical_data(data, show_export=True):
     """
     Display the extracted clinical data in professional cards.
     
@@ -1454,19 +1317,20 @@ def display_structured_clinical_data(data):
     # =========================================================================
     # Raw JSON Export
     # =========================================================================
-    st.markdown(
-        '<div style="height:1px; background:linear-gradient(90deg,transparent,#e2e8f0,transparent); margin:1.5rem 0 1rem 0;"></div>',
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        '<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin-bottom:0.5rem;">📥 Export Data</div>',
-        unsafe_allow_html=True
-    )
-    
-    with st.expander("View Raw JSON"):
-        import json
-        formatted_json = json.dumps(data, indent=2)
-        st.code(formatted_json, language="json")
+    if show_export:
+        st.markdown(
+            '<div style="height:1px; background:linear-gradient(90deg,transparent,#e2e8f0,transparent); margin:1.5rem 0 1rem 0;"></div>',
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            '<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin-bottom:0.5rem;">📥 Export Data</div>',
+            unsafe_allow_html=True
+        )
+        
+        with st.expander("View Raw JSON"):
+            import json
+            formatted_json = json.dumps(data, indent=2)
+            st.code(formatted_json, language="json")
 
 
 # =============================================================================
@@ -1488,23 +1352,9 @@ def create_status_panel(processing_done):
         if harmonization_done:
             conflict_list = conflicts.get("conflicts", [])
             if conflict_list:
-                for c in conflict_list:
-                    severity_icon = "🔴" if c["severity"] == "high" else "🟡"
-                    st.markdown(
-                        f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid {"#dc2626" if c["severity"] == "high" else "#eab308"}; border-radius:8px; padding:0.6rem 0.8rem; margin-bottom:0.5rem;">'
-                        f'<div style="font-weight:600; color:#0f2b4a; font-size:0.85rem;">{severity_icon} {c["description"]}</div>',
-                        unsafe_allow_html=True
-                    )
-                    for doc, val in c["sources"]:
-                        st.markdown(
-                            f'<div style="font-size:0.8rem; padding:0.1rem 0; color:#475569; display:flex; gap:0.5rem;">'
-                            f'<span style="color:#64748b; min-width:100px;">{doc}</span>'
-                            f'<span style="color:#94a3b8;">→</span>'
-                            f'<span style="color:#0f2b4a;">{val}</span>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-                    st.markdown('</div>', unsafe_allow_html=True)
+                high = sum(1 for c in conflict_list if c["severity"] == "high")
+                med = len(conflict_list) - high
+                st.info(f"⚠️ {len(conflict_list)} conflict(s) found — {high} high, {med} medium")
             else:
                 st.success("✅ No conflicts detected across documents.")
         elif extraction_done:

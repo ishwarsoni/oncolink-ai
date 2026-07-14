@@ -146,11 +146,11 @@ def call_llm(
     system_prompt,
     user_prompt,
     model="nvidia/nemotron-3-ultra-550b-a55b",
-    temperature=1.0,
-    top_p=0.95,
-    max_tokens=16384,
-    reasoning_budget=16384,
-    enable_thinking=True
+    temperature=0.1,
+    top_p=0.1,
+    max_tokens=4096,
+    reasoning_budget=None,
+    enable_thinking=False
 ):
     """
     Send a chat completion request to the LLM and get the response.
@@ -175,7 +175,7 @@ def call_llm(
         We send system + user, and the model generates the assistant response.
     
     Returns:
-        str: The text content of the model's response (thinking + content combined)
+        str: The text content of the model's response
     """
     
     try:
@@ -192,7 +192,7 @@ def call_llm(
             "stream": True,
         }
         
-        if enable_thinking:
+        if enable_thinking and reasoning_budget:
             request_params["extra_body"] = {
                 "chat_template_kwargs": {"enable_thinking": True},
                 "reasoning_budget": reasoning_budget
@@ -202,27 +202,16 @@ def call_llm(
         stream = client.chat.completions.create(**request_params)
         
         full_content = ""
-        full_reasoning = ""
         
         for chunk in stream:
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
             
-            reasoning = getattr(delta, "reasoning_content", None)
-            if reasoning:
-                full_reasoning += reasoning
-            
             if delta.content is not None:
                 full_content += delta.content
         
-        # Combine reasoning + content
-        if full_reasoning and full_content:
-            response_text = full_reasoning + "\n" + full_content
-        else:
-            response_text = full_content or full_reasoning
-        
-        return response_text
+        return full_content
     
     except Exception as error:
         error_message = f"LLM API call failed: {error}"

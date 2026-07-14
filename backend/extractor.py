@@ -30,6 +30,9 @@ Why the additional steps:
 # Import Python's JSON module for parsing
 import json
 
+# Import for parallel execution
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 # Import our custom modules
 from backend.prompt_builder import build_extraction_prompt
 from backend.llm_client import create_nvidia_client, call_llm
@@ -289,9 +292,27 @@ def extract_from_multiple_documents(processed_files):
     return result
 
 
+def _extract_single(file_result):
+    """Helper to run extraction on a single file (used by ThreadPoolExecutor)."""
+    if not file_result["success"]:
+        return {
+            "success": False,
+            "data": None,
+            "filename": file_result["filename"],
+            "errors": [f"File could not be read: {file_result.get('text', 'Unknown error')}"],
+            "warnings": [],
+            "raw_response": None,
+            "validation": None,
+            "normalization": None
+        }
+    extraction = run_extraction(file_result["text"])
+    extraction["filename"] = file_result["filename"]
+    return extraction
+
+
 def extract_each_document(processed_files):
     """
-    Run extraction on each document individually, returning per-document results.
+    Run extraction on each document in parallel, returning per-document results.
     
     This is used for harmonization and conflict detection where we need
     separate extractions from each document.
@@ -303,24 +324,10 @@ def extract_each_document(processed_files):
     Returns:
         list: List of extraction result dicts, each with an added "filename" key
     """
-    results = []
-    
-    for file_result in processed_files:
-        if not file_result["success"]:
-            results.append({
-                "success": False,
-                "data": None,
-                "filename": file_result["filename"],
-                "errors": [f"File could not be read: {file_result.get('text', 'Unknown error')}"],
-                "warnings": [],
-                "raw_response": None,
-                "validation": None,
-                "normalization": None
-            })
-            continue
-        
-        extraction = run_extraction(file_result["text"])
-        extraction["filename"] = file_result["filename"]
-        results.append(extraction)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(_extract_single, fr): fr for fr in processed_files}
+        results = []
+        for future in as_completed(futures):
+            results.append(future.result())
     
     return results
