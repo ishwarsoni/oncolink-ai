@@ -1,0 +1,44 @@
+DISCHARGE SUMMARY
+Hospital: Max Super Speciality Hospital, New Delhi
+Date of Admission: 10-05-2026
+Date of Discharge: 14-05-2026
+
+PATIENT DETAILS:
+Name: Sunita Devi Sharma
+Age: 58 years
+Sex: Female
+MRN: MGH-2026-3319
+Ward: Oncology - Room 412
+
+ATTENDING CONSULTANT: Dr. Rajesh Verma (Medical Oncology)
+
+DIAGNOSIS:
+Carcinoma right lung - Stage IIIA (T3 N1 M0)
+Adenocarcinoma, EGFR exon 19 deletion positive
+
+HISTORY OF PRESENTING ILLNESS:
+Patient is a known case of NSCLC on Osimertinib since 15-Apr-2026. Presented to Emergency on 10-May-2026 with complaints of Grade 3 diarrhea (8-10 episodes/day) with mild dehydration and maculopapular rash over face and trunk (Grade 2).
+
+HOSPITAL COURSE:
+- Admitted for IV fluids and electrolyte monitoring
+- Osimertinib held for 5 days
+- Loperamide 2 mg post each loose stool
+- Topical hydrocortisone 1% cream for rash - BID
+- Doxycycline 100 mg PO BID started for rash on Day 2
+- Diarrhea resolved to Grade 1 by Day 3
+- Rash improved to Grade 1 by Day 4
+
+MEDICATIONS AT DISCHARGE:
+1. Tab Osimertinib 80 mg OD - RESTART on 15-May-2026
+2. Tab Loperamide 2 mg - PRN for loose stools
+3. Hydrocortisone 1% cream - apply BID for residual rash
+4. Doxycycline 100 mg BID - complete 7 day course
+
+DISCHARGE INSTRUCTIONS:
+- Monitor for recurrence of rash or diarrhea
+- Weekly CBC, LFT, creatinine for next 4 weeks
+- Next oncology follow-up: 28-May-2026
+- Hold osimertinib and contact clinic if diarrhea > 4 episodes/day or severe rash
+
+FOLLOW-UP APPOINTMENT:
+Dr. Priya Mehta - 28-May-2026 at 11:00 AM

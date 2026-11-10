@@ -1,0 +1,26 @@
+# =============================================================================
+# OncoLink - Project Dependencies
+# =============================================================================
+# Core application
+streamlit>=1.43.0
+openai>=1.35.0
+python-dotenv>=1.0.1
+PyMuPDF>=1.24.0
+python-docx>=1.1.2
+pydantic>=2.7.4
+fpdf2>=2.8.7
+
+# RAG pipeline
+# sentence-transformers installs torch and transformers as dependencies.
+# Install a CUDA-specific torch build separately if you want GPU embeddings:
+#   https://pytorch.org/get-started/locally/
+sentence-transformers>=3.0.0
+# Explicit floor for CrossEncoder; also installed by sentence-transformers.
+transformers>=4.40.0
+chromadb>=0.5.0
+rank-bm25>=0.2.2
+tiktoken>=0.7.0
+numpy>=1.24.0
+
+# Development / formatting
+black>=24.4.2
