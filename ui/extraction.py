@@ -1,16 +1,16 @@
 """
 extraction.py - AI clinical extraction UI and structured-data display.
 
-The extraction pipeline itself lives in ``backend.extractor``.  This module
-only starts it, stores the results in session state, and renders them.
+The extraction workflow (prompt, LLM call, validation, normalization) lives in
+``application.clinical`` / ``backend.extractor``.  This module starts it,
+stores the results in session state, and renders them.
 """
 
 import json
 
 import streamlit as st
 
-from backend.extractor import extract_each_document, extract_from_multiple_documents
-from ui.session import resolve_api_key
+from ui.session import get_intelligence_service, resolve_api_key
 from ui.styles import _gradient_divider
 
 
@@ -75,18 +75,17 @@ def _run_and_store_extraction():
     The combined result powers the main extraction view; the per-document
     results feed harmonization and conflict detection.
     """
-    processed_files = st.session_state["processed_files"]
+    service = get_intelligence_service()
 
     with st.spinner("Calling NVIDIA AI... This may take 10-30 seconds."):
-        result = extract_from_multiple_documents(processed_files)
-        per_document_results = extract_each_document(processed_files)
+        run = service.run_clinical()
 
-        st.session_state["extraction_result"] = result
-        st.session_state["per_doc_results"] = per_document_results
+        st.session_state["extraction_result"] = run.combined
+        st.session_state["per_doc_results"] = list(run.per_document)
         st.session_state["extraction_done"] = True
         st.session_state["harmonization_done"] = False
 
-    _render_extraction_feedback(result)
+    _render_extraction_feedback(run.combined)
 
 
 def _render_extraction_feedback(result):

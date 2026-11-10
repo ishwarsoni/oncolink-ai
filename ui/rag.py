@@ -1,125 +1,15 @@
 """
 rag.py - Clinical RAG assistant UI.
 
-This module owns presentation and Streamlit session state only.  Hashing,
-indexing, retrieval, and answer generation live in ``backend/``.
+This module owns presentation and Streamlit session state only.  Ingestion,
+indexing, retrieval, and answer generation live in ``application.rag`` and
+``backend``; the UI calls the orchestrator and renders its results.
 """
 
 import streamlit as st
 
 from backend.citation_manager import page_label
-from backend.config import RAGConfig
-from backend.rag_indexer import (
-    build_document_record,
-    build_rag_components,
-    document_content_hash,
-    ensure_documents_indexed,
-    index_signature,
-    remove_patient_index,
-)
-from ui.session import resolve_api_key
-
-
-def _get_rag_components():
-    """Build and cache the RAG stack for this browser session."""
-    components = st.session_state.get("rag_components")
-    if components is not None:
-        return components
-
-    try:
-        # Instantiate the config after load_dotenv() has run so overrides from
-        # .env are picked up.
-        components = build_rag_components(config=RAGConfig())
-        st.session_state["rag_components"] = components
-        st.session_state["rag_init_error"] = None
-        return components
-    except Exception as error:
-        st.session_state["rag_init_error"] = str(error)
-        return None
-
-
-def _current_rag_documents():
-    """
-    Convert the processed uploads into patient-scoped RAG documents.
-
-    Building a record hashes the full document text.  Uploads do not change
-    while they stay in session state, so the result is cached per patient and
-    file set instead of being rebuilt for every question.
-    """
-    patient_id = st.session_state.get("patient_id", "")
-    processed = [
-        item for item in st.session_state.get("processed_files", []) if item.get("success")
-    ]
-    cache_key = (
-        patient_id,
-        tuple((item.get("filename", ""), _cached_content_hash(item)) for item in processed),
-    )
-
-    cached = st.session_state.get("rag_documents_cache")
-    if cached and cached.get("key") == cache_key:
-        return cached["documents"], cached["errors"]
-
-    documents = []
-    errors = []
-    for item in processed:
-        try:
-            documents.append(build_document_record(item, patient_id))
-        except Exception as error:
-            errors.append(f"{item.get('filename', 'Unknown file')}: {error}")
-
-    st.session_state["rag_documents_cache"] = {
-        "key": cache_key,
-        "documents": documents,
-        "errors": errors,
-    }
-    return documents, errors
-
-
-def _cached_content_hash(item):
-    """Memoize the document hash on the processed-file dict."""
-    cached = item.get("_rag_content_hash")
-    if cached:
-        return cached
-    digest = document_content_hash(item.get("text", ""))
-    item["_rag_content_hash"] = digest
-    return digest
-
-
-def _ensure_rag_index(components, force=False):
-    """
-    Index the currently processed documents if needed.
-
-    Unchanged documents are skipped by the indexer's content-hash check, so
-    this is safe to call before each question.  The session cache avoids
-    repeating the bookkeeping work on every rerun.
-    """
-    documents, document_errors = _current_rag_documents()
-    if not documents:
-        result = ensure_documents_indexed([], components)
-        result["warnings"].extend(document_errors)
-        return result
-
-    signature = index_signature(documents)
-    patient_id = st.session_state.get("patient_id", "")
-    cached_result = st.session_state.get("rag_index_result")
-
-    if (
-        not force
-        and cached_result
-        and st.session_state.get("rag_index_signature") == signature
-    ):
-        try:
-            if components["vector_store"].count(patient_id) > 0:
-                return cached_result
-        except Exception:
-            # A stale cache must never block a fresh index attempt.
-            pass
-
-    result = ensure_documents_indexed(documents, components, force=force)
-    result["warnings"].extend(document_errors)
-    st.session_state["rag_index_result"] = result
-    st.session_state["rag_index_signature"] = signature if result.get("success") else None
-    return result
+from ui.session import get_intelligence_service, resolve_api_key
 
 
 def _score_caption(item):
@@ -272,22 +162,19 @@ def _render_retrieval_settings(config, settings):
     return mode, top_k, use_rerank, threshold
 
 
-def _render_index_status(components, patient_id):
+def _render_index_status(index_status, patient_id):
     """Show how many documents/chunks are indexed for this case."""
-    try:
-        indexed_documents = components["vector_store"].list_documents(patient_id)
-        chunk_count = components["vector_store"].count(patient_id)
-    except Exception as error:
-        st.error(f"Could not read the RAG index: {error}")
+    if not index_status.success:
+        st.error(f"Could not read the RAG index: {index_status.error}")
         return False
 
-    if indexed_documents:
+    if index_status.documents:
         st.success(
-            f"✅ {len(indexed_documents)} document(s) indexed · "
-            f"{chunk_count} chunk(s) · case {patient_id}"
+            f"✅ {len(index_status.documents)} document(s) indexed · "
+            f"{index_status.chunk_count} chunk(s) · case {patient_id}"
         )
         with st.expander("📚 Indexed documents"):
-            for document in indexed_documents:
+            for document in index_status.documents:
                 st.markdown(
                     f"- **{document['filename']}** · "
                     f"{document['chunk_count']} chunk(s) · "
@@ -301,7 +188,7 @@ def _render_index_status(components, patient_id):
     return True
 
 
-def _render_index_controls(components, patient_id):
+def _render_index_controls(service):
     """Render index build/update and delete controls."""
     index_col, force_col = st.columns([2, 1])
     with index_col:
@@ -320,7 +207,7 @@ def _render_index_controls(components, patient_id):
 
     if index_clicked:
         with st.spinner("Chunking and embedding documents..."):
-            index_result = _ensure_rag_index(components, force=force_rebuild)
+            index_result = service.ensure_rag_index(force=force_rebuild)
         if index_result.get("success"):
             st.success(
                 f"Index ready: {index_result.get('indexed', 0)} new, "
@@ -348,12 +235,9 @@ def _render_index_controls(components, patient_id):
             disabled=not confirm_delete,
             key="rag_delete_button",
         ):
-            deleted = remove_patient_index(components["vector_store"], patient_id)
-            components["hybrid_retriever"].invalidate(patient_id)
-            st.session_state["rag_index_result"] = None
-            st.session_state["rag_index_signature"] = None
+            deleted = service.delete_rag_index()
             st.session_state["rag_chat"] = []
-            st.success(f"Deleted {deleted} chunk(s) for case {patient_id}.")
+            st.success(f"Deleted {deleted} chunk(s) for case {service.patient_id}.")
             st.rerun()
 
 
@@ -388,22 +272,7 @@ def _render_chat_history():
             st.rerun()
 
 
-def _build_index_error_result(index_result):
-    """Build the answer-shaped result used when indexing failed."""
-    return {
-        "success": False,
-        "answer": "",
-        "sources": [],
-        "retrieved_evidence": [],
-        "unresolved_contradictions": [],
-        "insufficient_evidence": True,
-        "warnings": index_result.get("warnings", []),
-        "error": "The RAG index could not be built: "
-        + "; ".join(index_result.get("errors", [])),
-    }
-
-
-def _handle_rag_question(components, patient_id, top_k, mode, use_rerank, threshold):
+def _handle_rag_question(service, top_k, mode, use_rerank, threshold):
     """Handle one question: index if needed, retrieve, answer, and store."""
     question = st.chat_input(
         "Ask a question about the uploaded patient documents...",
@@ -413,21 +282,13 @@ def _handle_rag_question(components, patient_id, top_k, mode, use_rerank, thresh
         return
 
     with st.spinner("Retrieving evidence and generating a grounded answer..."):
-        index_result = _ensure_rag_index(components)
-        if not index_result.get("success"):
-            answer_result = _build_index_error_result(index_result)
-        else:
-            # Reranking is chosen per question; the reranker object loads
-            # lazily only when it is actually used.
-            components["reranker"].enabled = bool(use_rerank)
-            answer_result = components["rag_engine"].answer(
-                patient_id=patient_id,
-                question=question,
-                top_k=top_k,
-                mode=mode,
-                rerank=use_rerank,
-                score_threshold=None if threshold <= -1.0 else threshold,
-            )
+        answer_result = service.ask(
+            question=question,
+            top_k=top_k,
+            mode=mode,
+            rerank=use_rerank,
+            score_threshold=None if threshold <= -1.0 else threshold,
+        )
 
         st.session_state["rag_chat"].append({"role": "user", "content": question})
         st.session_state["rag_chat"].append(
@@ -444,7 +305,7 @@ def create_rag_assistant_section():
     """
     Render the Clinical RAG Assistant.
 
-    The assistant uses the same uploaded documents as the structured
+    The assistant uses the same canonical documents as the structured
     extraction pipeline, but retrieval is always filtered to the current
     session's patient/case ID.
     """
@@ -460,23 +321,24 @@ def create_rag_assistant_section():
             "index, but answer generation will fail until a key is entered in the sidebar."
         )
 
-    components = _get_rag_components()
+    service = get_intelligence_service()
+    components = service.rag.components
     if components is None:
         st.error(
             "The RAG knowledge base could not be initialised. "
-            f"{st.session_state.get('rag_init_error', '')}"
+            f"{service.rag.init_error}"
         )
         return
 
-    patient_id = st.session_state.get("patient_id", "")
+    patient_id = service.patient_id
     config = components["config"]
     settings = st.session_state.get("rag_settings", {})
 
     mode, top_k, use_rerank, threshold = _render_retrieval_settings(config, settings)
 
-    if not _render_index_status(components, patient_id):
+    if not _render_index_status(service.index_status(), patient_id):
         return
 
-    _render_index_controls(components, patient_id)
+    _render_index_controls(service)
     _render_chat_history()
-    _handle_rag_question(components, patient_id, top_k, mode, use_rerank, threshold)
+    _handle_rag_question(service, top_k, mode, use_rerank, threshold)

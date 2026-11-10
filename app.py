@@ -1,9 +1,10 @@
 """
 OncoLink - AI Clinical Intelligence Platform.
 
-Application entry point.  The Streamlit UI lives in the ``ui`` package and
-all business logic lives in ``backend``; this file only wires them together
-in the intended render order.
+Application entry point.  The Streamlit UI lives in the ``ui`` package,
+workflows live in ``application``, domain models in ``domain``, clinical and
+retrieval algorithms in ``backend``, and external services in
+``infrastructure``.  This file only wires them together in render order.
 
 Run with:
     streamlit run app.py

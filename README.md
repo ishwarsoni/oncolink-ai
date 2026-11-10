@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/tests-276%20passing-2ea44f)](scripts/)
+[![Tests](https://img.shields.io/badge/offline%20tests-365%20passing-2ea44f)](scripts/)
 [![License](https://img.shields.io/badge/license-educational%20use%20only-6b7280)](#license-and-disclaimer)
 
 > **Not a medical device.** OncoLink is educational and demonstration software.
@@ -45,15 +45,19 @@ clinical data with a large language model, validates and harmonizes that data
 across documents, and answers questions using retrieval-augmented generation
 (RAG) over the same material.
 
-The application contains two independent pipelines that share a single upload
-and text-extraction stage:
+The application contains two independent capabilities that share one canonical
+document representation and one upload/read pass:
 
 1. **Structured extraction and harmonization** — turns free text into a
    validated `ClinicalData` record, merges multiple documents into one patient
    timeline, and surfaces cross-document conflicts rather than hiding them.
-2. **Clinical RAG assistant** — chunks, embeds, and indexes the extracted text
-   in a patient-scoped vector store, then generates answers that are restricted
-   to retrieved evidence and accompanied by validated citations.
+2. **Clinical RAG assistant** — chunks, embeds, and indexes the same text in a
+   patient-scoped vector store, then generates answers that are restricted to
+   retrieved evidence and accompanied by validated citations.
+
+A lightweight orchestrator tracks ingestion, structured extraction and RAG
+indexing independently. One branch failing is recorded on that branch only; it
+never corrupts the other branch's data or marks it as failed.
 
 Design priorities are traceability, explicit uncertainty handling, and patient
 isolation. Every answer can be traced back to the document and page that
@@ -121,57 +125,64 @@ being resolved silently.
 ## Architecture
 
 ```text
-                        ┌──────────────────────────────────┐
-                        │   Upload PDF / DOCX / TXT        │
-                        └───────────────┬──────────────────┘
-                                        │
-                        ┌───────────────▼──────────────────┐
-                        │   Text + page extraction         │
-                        │ (PyMuPDF / python-docx / plain)  │
-                        └───────┬──────────────────┬───────┘
-                                │                  │
-             ┌──────────────────▼───┐          ┌───▼─────────────────────────┐
-             │ Structured pipeline  │          │ RAG pipeline                │
-             │                      │          │                             │
-             │ LLM extraction       │          │ Cleaning + token chunking   │
-             │ JSON parsing         │          │ Sentence Transformers       │
-             │ Pydantic validation  │          │ Persistent ChromaDB         │
-             │ Normalization        │          │                             │
-             │ Harmonization        │          │ Question                    │
-             │ Conflict detection   │          │   ↓                         │
-             │ Patient summary      │          │ Hybrid retrieval (RRF)      │
-             │ JSON view / PDF      │          │   ↓                         │
-             │                      │          │ Optional reranking          │
-             │                      │          │   ↓                         │
-             │                      │          │ NVIDIA Nemotron             │
-             │                      │          │   ↓                         │
-             │                      │          │ Validated answer + sources  │
-             └──────────────────────┘          └─────────────────────────────┘
+                 ┌──────────────────────────────────────────┐
+                 │  Upload PDF / DOCX / TXT (one read pass) │
+                 └────────────────────┬─────────────────────┘
+                                      │
+                 ┌────────────────────▼─────────────────────┐
+                 │  Ingestion -> canonical ClinicalDocument │
+                 │  stable IDs, text, 1-based pages, hash   │
+                 └───────────┬──────────────────┬───────────┘
+                             │                  │
+        ┌────────────────────▼───┐        ┌─────▼──────────────────────────┐
+        │ Structured clinical    │        │ Evidence retrieval / RAG       │
+        │                        │        │                                │
+        │ Per-document + combined│        │ Cleaning + token chunking      │
+        │ LLM extraction         │        │ Sentence Transformers          │
+        │ JSON parsing           │        │ Persistent ChromaDB            │
+        │ Pydantic validation    │        │                                │
+        │ Normalization          │        │ Question                       │
+        │ Harmonization          │        │   ↓                            │
+        │ Conflict detection     │        │ Hybrid retrieval (RRF)         │
+        │ Patient summary        │        │   ↓                            │
+        │ JSON view / PDF        │        │ Optional reranking             │
+        │                        │        │   ↓                            │
+        │                        │        │ NVIDIA Nemotron                │
+        │                        │        │   ↓                            │
+        │                        │        │ Validated answer + sources     │
+        └────────────────────────┘        └────────────────────────────────┘
 ```
 
-Both pipelines operate on the same uploaded documents. The structured pipeline
-produces a harmonized patient record; the RAG pipeline indexes the same text as
-patient-scoped chunks for question answering.
+Both branches receive the same immutable `ClinicalDocument` objects from
+`application.ingestion`. The orchestrator records ingestion, clinical and RAG
+status separately, so a clinical failure leaves the RAG index usable and a RAG
+failure leaves successful structured data intact.
 
 ### Layering
 
 | Layer | Location | Responsibility |
 |---|---|---|
 | Entry point | `app.py` | Loads environment variables, configures the page, and calls UI sections in render order. No business logic. |
-| Presentation | `ui/` | Widgets, session state, rendering, and downloads. Reads results from `backend`; never implements extraction, merging, or retrieval. |
-| Domain logic | `backend/` | File readers, LLM calls, validation, normalization, harmonization, conflict detection, chunking, indexing, retrieval, and answer validation. |
+| Presentation | `ui/` | Widgets, session state, rendering, and downloads. Delegates workflows to `application/`; never implements extraction, merging, or retrieval. |
+| Application | `application/` | Ingestion, clinical/RAG workflow coordination, per-stage status, lazy RAG lifecycle, and the unified intelligence facade. No Streamlit imports. |
+| Domain | `domain/` | Canonical document model, stable IDs/hashes, clinical schema, and core rules. Framework-free. |
+| Backend | `backend/` | File readers and clinical/RAG algorithms: prompts, validation, normalization, harmonization, conflict detection, chunking, retrieval, answer validation. No Streamlit imports. |
+| Infrastructure | `infrastructure/` | NVIDIA client, configuration, embeddings, ChromaDB, reranker, and rotating logging. |
 
-`ui` imports `backend`; `backend` never imports `ui`. `app.py` is the only
-module that knows the full page order.
+Legacy `backend/config.py`, `backend/llm_client.py`, `backend/schema.py`,
+`backend/embedding_service.py`, `backend/vector_store.py` and
+`backend/reranker.py` remain as thin compatibility re-exports, so existing
+integrations and scripts keep working while the canonical implementations live
+in the new layers.
 
 ### Structured extraction pipeline
 
 ```text
 document text
   → prompt_builder.build_extraction_prompt
-  → llm_client.call_llm (NVIDIA NIM)
+  → infrastructure.llm.call_llm (NVIDIA NIM)
   → json_parser.clean_llm_response + parse_json_safely
-  → validator.validate_clinical_data (Pydantic ClinicalData)
+  → validator.validate_clinical_data (domain.clinical.ClinicalData)
   → normalizer.run_normalization_pipeline
   → harmonizer.harmonize_extractions (per-document results)
   → conflict_detector.detect_conflicts
@@ -185,14 +196,14 @@ instead of raising, so one malformed document cannot crash the application.
 ### RAG pipeline
 
 ```text
-document text
-  → chunker.chunk_documents
-  → embedding_service (BAAI/bge-small-en-v1.5)
-  → vector_store (ChromaDB, patient-scoped)
+canonical ClinicalDocument
+  → chunker.chunk_document
+  → infrastructure.embeddings (BAAI/bge-small-en-v1.5)
+  → infrastructure.vector_store (ChromaDB, patient-scoped)
   → retriever / hybrid_retriever (semantic + BM25 → RRF)
   → reranker (optional)
   → rag_engine.build_prompt
-  → llm_client.call_llm (NVIDIA NIM)
+  → infrastructure.llm.call_llm (NVIDIA NIM)
   → rag_engine.validate_answer
   → citation_manager.build_citations
 ```
@@ -206,6 +217,8 @@ oncolink-ai-master/
 ├── app.py                       # Entry point: wiring and render order only
 ├── requirements.txt
 ├── README.md
+├── ARCHITECTURE.md              # Layer responsibilities and data flow
+├── DEVELOPMENT.md               # Extension, configuration and testing guide
 ├── .env                         # NVIDIA API key (gitignored, created locally)
 │
 ├── .streamlit/
@@ -217,23 +230,32 @@ oncolink-ai-master/
 │
 ├── ui/                          # Streamlit presentation layer
 │   ├── styles.py                # Page config, CSS, dividers, footer
-│   ├── session.py               # Logging, session state, API-key resolution
+│   ├── session.py               # Logging, session state, service cache, API keys
 │   ├── sidebar.py               # Branding, API status, patient-case controls
-│   ├── upload.py                # Uploader, processing, extracted-text display
+│   ├── upload.py                # Uploader, ingestion trigger, extracted text
 │   ├── extraction.py            # Extraction controls + structured-data cards
 │   ├── harmonization.py         # Harmonization, conflicts, summary, exports
-│   ├── rag.py                   # RAG assistant UI + session caching
+│   ├── rag.py                   # RAG assistant rendering + chat state
 │   └── export.py                # Shared PDF/text export helpers
 │
-├── backend/                     # Business logic (no Streamlit imports)
+├── application/                 # Workflows and orchestration (no Streamlit)
+│   ├── status.py                # Independent stage status model
+│   ├── ingestion.py             # One read per upload -> canonical documents
+│   ├── clinical.py              # Extraction + harmonization workflow
+│   ├── rag.py                   # Lazy RAG lifecycle, index cache, questions
+│   └── intelligence.py          # Unified facade + per-stage status tracking
+│
+├── domain/                      # Framework-free models and rules
+│   ├── documents.py             # ClinicalDocument, pages, IDs, hashes, dates
+│   └── clinical.py              # ClinicalData schema + derived metadata
+│
+├── backend/                     # Clinical and retrieval algorithms (no Streamlit)
 │   ├── document_loader.py       # File router (PDF/TXT/DOCX), returns pages
 │   ├── pdf_reader.py            # Page-aware PyMuPDF extraction
 │   ├── docx_reader.py           # DOCX text extraction
 │   ├── text_reader.py           # Plain-text decoding
-│   ├── llm_client.py            # NVIDIA NIM API client
 │   ├── prompt_builder.py        # Extraction prompt templates
 │   ├── json_parser.py           # Clean LLM output → valid JSON
-│   ├── schema.py                # Pydantic models + derived field metadata
 │   ├── validator.py             # Pydantic validation + error formatting
 │   ├── normalizer.py            # Value standardization
 │   ├── extractor.py             # Structured extraction orchestrator
@@ -241,35 +263,48 @@ oncolink-ai-master/
 │   ├── merge_utils.py           # Merge strategies
 │   ├── conflict_detector.py     # Cross-document discrepancy detection
 │   ├── summarizer.py            # Patient summary generator
-│   │
-│   ├── config.py                # RAG settings (environment-configurable)
 │   ├── chunker.py               # Token-aware chunking + metadata
-│   ├── embedding_service.py     # Sentence Transformers, cached model
-│   ├── vector_store.py          # Persistent ChromaDB + patient isolation
 │   ├── retriever.py             # Semantic retrieval
 │   ├── hybrid_retriever.py      # BM25 + Reciprocal Rank Fusion
-│   ├── reranker.py              # Optional cross-encoder reranking
 │   ├── citation_manager.py      # Validated citations / page labels
 │   ├── rag_engine.py            # Retrieval → prompt → answer → validation
-│   └── rag_indexer.py           # Document records, indexing, component factory
+│   ├── rag_indexer.py           # Chunk/embed/store workflow + component factory
+│   │
+│   └── compatibility re-exports:
+│       config.py, llm_client.py, schema.py, embedding_service.py,
+│       vector_store.py, reranker.py
+│
+├── infrastructure/              # External services and configuration
+│   ├── config.py                # Central RAG settings
+│   ├── llm.py                   # NVIDIA NIM client + model defaults
+│   ├── embeddings.py            # Sentence Transformers, lazy + cached model
+│   ├── vector_store.py          # Persistent ChromaDB + patient isolation
+│   ├── reranker.py              # Optional cross-encoder reranking
+│   └── logging.py               # Rotating application logging
 │
 ├── data/                        # Sample documents and test fixtures
 │   └── test_docs/               # Synthetic notes used by the RAG demos
 ├── scripts/                     # Offline tests and utility scripts
 ├── storage/chroma_db/           # Persistent vector database (gitignored)
-└── logs/                        # Application logs (gitignored)
+└── logs/                        # Rotating application logs (gitignored)
 ```
 
 ### Module responsibilities
 
 | Module | Purpose |
 |---|---|
-| `backend/schema.py` | Single source of truth: `ClinicalData` / `BiomarkerItem` plus `CLINICAL_SCHEMA`, `FIELD_LABELS`, and `REQUIRED_FIELDS` derived from the model. |
+| `domain/documents.py` | Canonical immutable document, stable document/patient IDs, content hashes, page preserving, index signature. |
+| `domain/clinical.py` | Single source of truth: `ClinicalData` / `BiomarkerItem` plus `CLINICAL_SCHEMA`, `FIELD_LABELS`, and `REQUIRED_FIELDS` derived from the model. |
+| `application/ingestion.py` | Reads each upload once and produces the canonical documents shared by both branches. |
+| `application/clinical.py` | Runs combined + per-document extraction and harmonization in a deterministic order. |
+| `application/rag.py` | Lazy RAG component lifecycle, content-hash index cache, question answering, index status and deletion. |
+| `application/intelligence.py` | Unified facade; tracks ingestion, clinical and RAG statuses independently. |
 | `backend/extractor.py` | Runs prompt → LLM → parse → validate → normalize for one text block or one document at a time. |
 | `backend/harmonizer.py` | Chooses a merge strategy per field and records which document supplied each value. |
 | `backend/conflict_detector.py` | Compares per-document extractions and reports disagreements before merging hides them. |
-| `backend/rag_indexer.py` | Builds document records, content hashes, chunk/embed/store indexing, and the RAG component bundle. |
-| `ui/rag.py` | Renders retrieval controls, index status, chat history, citations, and evidence; delegates all indexing to `backend.rag_indexer`. |
+| `backend/rag_indexer.py` | Builds chunk/embed/store indexing and the RAG component bundle. |
+| `infrastructure/llm.py` | The only module that reads the API key and constructs the NVIDIA client. |
+| `ui/rag.py` | Renders retrieval controls, index status, chat history, citations, and evidence; delegates workflows to `application/`. |
 
 ---
 
@@ -571,9 +606,10 @@ when they are known.
 
 ## Data Model
 
-Field definitions live in `backend/schema.py`. `ClinicalData` is the validation
+Field definitions live in `domain/clinical.py`. `ClinicalData` is the validation
 model; `CLINICAL_SCHEMA`, `FIELD_LABELS`, and `REQUIRED_FIELDS` are derived from
-it, so documentation cannot drift from validation.
+it, so documentation cannot drift from validation. `backend/schema.py` remains
+as a compatibility re-export.
 
 | Field | Type | Expected in complete record | Description |
 |---|---|---|---|
@@ -607,8 +643,9 @@ Biomarker entries support the following fields:
 
 ## Configuration Reference
 
-All RAG settings are environment-configurable through `backend/config.py`.
-Boolean variables accept `1`, `true`, `yes`, `on`, or `y`.
+All RAG settings are environment-configurable through
+`infrastructure/config.py`. Boolean variables accept `1`, `true`, `yes`, `on`,
+or `y`.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -640,10 +677,12 @@ Additional configuration:
 | `NVIDIA_API_KEY` | `.env`, environment, secrets, or sidebar | none (required) |
 | Maximum upload size | `.streamlit/config.toml` | 50 MB |
 | Theme colors | `.streamlit/config.toml` | Blue clinical theme |
-| Log file | `logs/application.log` | Rewritten on each application start |
+| Log file | `logs/application.log` | Rotating, 5 MB × 3 backups |
 
-The NVIDIA key is resolved by `backend/llm_client.py` and `ui/session.py`; it
-must never be committed to the repository.
+The NVIDIA key is resolved by `ui/session.py` (Streamlit secrets → environment
+→ sidebar) and exported as `NVIDIA_API_KEY`; `infrastructure/llm.py` is the only
+module that reads it and constructs the client. It must never be committed to
+the repository.
 
 ---
 
@@ -666,8 +705,9 @@ must never be committed to the repository.
 - **No secret logging** — API keys are read from the environment, secrets, or
   the sidebar and are not written to logs. Raw questions are not logged by
   default.
-- **Session separation** — starting a new case resets the case ID, chat history,
-  and index signature.
+- **Session separation** — starting a new case resets the case ID, uploaded
+  documents, extraction/harmonization results, chat history, and RAG index
+  state. The old case's data is never reused under the new ID.
 - **Local storage** — vectors and logs stay on the local filesystem or the
   deployment instance; no documents are sent anywhere except the configured
   NVIDIA endpoint for inference.
@@ -695,9 +735,12 @@ python scripts/test_reranker.py
 python scripts/test_rag_pipeline.py
 python scripts/test_patient_isolation.py
 python scripts/test_regression_existing.py
+python scripts/test_architecture.py
+python scripts/test_workflow.py
+python scripts/test_app_smoke.py
 ```
 
-The nine regression suites contain **276 checks**, all passing:
+The twelve suites contain **365 checks**, all passing:
 
 | Suite | Checks | Coverage |
 |---|---:|---|
@@ -710,6 +753,9 @@ The nine regression suites contain **276 checks**, all passing:
 | `test_rag_pipeline.py` | 49 | Answer validation, citations, contradictions, page accuracy, prompt injection |
 | `test_patient_isolation.py` | 43 | Isolation, deletion, indexing lifecycle, filename safety |
 | `test_regression_existing.py` | 52 | Extraction, harmonization, conflict, summary, and export regressions |
+| `test_architecture.py` | 30 | Layer boundaries, model configuration, compatibility shims, UI surface |
+| `test_workflow.py` | 47 | Single read, shared IDs/pages, incremental indexing, isolation, branch independence, lazy loading |
+| `test_app_smoke.py` | 12 | Real `app.py` render via AppTest, exports |
 
 `test_embeddings.py` includes one optional real-model check that is skipped
 unless `ONCOLINK_TEST_REAL_MODELS=1` is set.
@@ -748,7 +794,10 @@ $env:ONCOLINK_TEST_REAL_MODELS = "1"
 python scripts/test_rag_integration.py
 ```
 
-The integration test skips the LLM step cleanly when no key is present.
+The integration test exercises the real `BAAI/bge-small-en-v1.5` embedding model,
+persistent ChromaDB and hybrid retrieval. Without `NVIDIA_API_KEY` it reports
+11 passed, 0 failed, and the real LLM check as **SKIPPED**. It never reports a
+skipped LLM check as passed.
 
 ---
 
@@ -769,8 +818,9 @@ secrets are resolved before environment variables.
   hosting, the index must be rebuilt after a restart or redeploy.
 - For durable deployments, mount `storage/chroma_db` on persistent disk or
   point `ONCOLINK_CHROMA_DIR` at a persistent volume.
-- `logs/application.log` is rewritten on each application start
-  (`filemode="w"`); adjust `ui/session.py` if log history is required.
+- `logs/application.log` uses size-based rotation (5 MB × 3 backups) instead of
+  being truncated on every start. Adjust `infrastructure/logging.py` if a
+  different retention policy is required.
 - The development container forwards port 8501 and installs dependencies
   automatically.
 
@@ -877,13 +927,14 @@ first, or accept citations without page numbers.
 Contributions are welcome for educational and research use. When changing the
 codebase, keep the following invariants intact:
 
-1. **Layering** — `ui` may import `backend`; `backend` must never import `ui`
-   or Streamlit. `app.py` remains the only module that defines page order.
+1. **Layering** — `ui` may import `application`; `application` coordinates
+   `domain`, `backend` and `infrastructure`. None of those layers may import
+   `ui` or Streamlit. `app.py` remains the only module that defines page order.
 2. **Result envelopes** — domain functions return `success`, `data`, `errors`,
    and `warnings` rather than raising, so a single bad document cannot break the
    UI.
 3. **Schema as the source of truth** — add or change fields in
-   `backend/schema.py` only; labels, documentation metadata, and required-field
+   `domain/clinical.py` only; labels, documentation metadata, and required-field
    lists are derived from it.
 4. **Patient isolation** — any new vector-store operation must require and
    enforce `patient_id`.

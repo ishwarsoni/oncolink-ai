@@ -1,165 +1,72 @@
-"""
-=============================================================================
-rag_indexer.py - Build the patient-scoped knowledge base
-=============================================================================
+"""RAG indexing: canonical documents -> chunks -> embeddings -> ChromaDB.
 
-This module connects the existing document loader to the RAG stack:
-
-    processed file dict -> stable document record -> chunks -> embeddings
-                        -> ChromaDB
+This module owns the storage-side workflow only.  Ingestion, status tracking
+and UI orchestration live in the application layer; retrieval and generation
+live in ``backend.retriever`` / ``backend.rag_engine``.
 
 Key behaviours:
-    * A document ID is derived from the patient ID and filename, so
-      re-uploading a corrected version updates the same document.
-    * A content hash detects unchanged documents, so they are not embedded
-      again on every Streamlit rerun.
-    * Patient IDs are random, non-identifying case IDs.  Patient names are
-      never used as identifiers.
-    * The same uploaded documents feed both the structured extraction
-      pipeline and the RAG pipeline.
-=============================================================================
+    * Document IDs are derived from patient ID and filename, so a corrected
+      re-upload updates the same document instead of duplicating it.
+    * Content hashes detect unchanged documents, so Streamlit reruns and
+      repeated questions never re-embed unchanged text.
+    * Changed documents have their previous chunks deleted before the new
+      version is written, so stale evidence can never be retrieved.
+    * Every operation is scoped to one patient ID; the vector store validates
+      that scope again on every row.
 """
 
-import hashlib
+from __future__ import annotations
+
 import logging
-import re
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from backend.chunker import chunk_document
-from backend.config import DEFAULT_CONFIG
-from backend.embedding_service import EmbeddingServiceError, get_embedding_service
 from backend.hybrid_retriever import HybridRetriever
 from backend.rag_engine import RAGEngine
-from backend.reranker import Reranker
 from backend.retriever import SemanticRetriever
-from backend.vector_store import VectorStore, VectorStoreError
+from domain.documents import (
+    ClinicalDocument,
+    document_content_hash,
+    extract_document_date,
+    generate_patient_id,
+    index_signature,
+    safe_filename,
+)
+from infrastructure.config import DEFAULT_CONFIG
+from infrastructure.embeddings import EmbeddingServiceError, get_embedding_service
+from infrastructure.reranker import Reranker
+from infrastructure.vector_store import VectorStore, VectorStoreError
 
 logger = logging.getLogger(__name__)
 
-
-_DATE_PATTERNS = [
-    # YYYY-MM-DD
-    re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b"),
-    # DD-MM-YYYY or DD/MM/YYYY
-    re.compile(r"\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b"),
-    # DD-Mon-YYYY
-    re.compile(r"\b(\d{1,2})[-\s]([A-Za-z]{3,9})[-\s](\d{4})\b"),
-    # Month DD, YYYY
-    re.compile(r"\b([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})\b"),
+__all__ = [
+    "build_document_record",
+    "build_rag_components",
+    "document_content_hash",
+    "ensure_documents_indexed",
+    "extract_document_date",
+    "generate_patient_id",
+    "index_documents",
+    "index_signature",
+    "remove_patient_index",
+    "safe_filename",
 ]
 
-_DATE_LABEL_PATTERN = re.compile(
-    r"\b(?:date|exam date|report date|date of admission|date of discharge|"
-    r"date collected|collection date|visit date)\b\s*[:\-]?\s*",
-    re.IGNORECASE,
-)
 
-_MONTHS = {
-    "jan": 1, "january": 1,
-    "feb": 2, "february": 2,
-    "mar": 3, "march": 3,
-    "apr": 4, "april": 4,
-    "may": 5,
-    "jun": 6, "june": 6,
-    "jul": 7, "july": 7,
-    "aug": 8, "august": 8,
-    "sep": 9, "sept": 9, "september": 9,
-    "oct": 10, "october": 10,
-    "nov": 11, "november": 11,
-    "dec": 12, "december": 12,
-}
+def _as_record(document: Any) -> Dict[str, Any]:
+    """Project a canonical document (or legacy mapping) to the chunker shape."""
+    if isinstance(document, ClinicalDocument):
+        return document.as_index_record()
+    if isinstance(document, Mapping):
+        return dict(document)
+    raise TypeError("Documents must be ClinicalDocument instances or mappings.")
 
 
-def generate_patient_id() -> str:
-    """Create a random, non-identifying case ID."""
-    return f"case_{uuid.uuid4().hex[:12]}"
-
-
-def document_content_hash(text: str) -> str:
-    """Return the SHA-256 hash used to detect unchanged document text."""
-    return hashlib.sha256((text or "").encode("utf-8", errors="replace")).hexdigest()
-
-
-def index_signature(documents: Iterable[Dict]) -> str:
-    """
-    Return a short signature of a document set.
-
-    The signature covers each document ID and content hash, so it changes
-    whenever a document is added, removed, or edited.  The UI uses it to
-    decide whether a cached indexing result is still valid.
-    """
-    parts = sorted(
-        f"{document.get('document_id', '')}:{document.get('content_hash', '')}"
-        for document in documents or []
-    )
-    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
-
-
-def safe_filename(filename: str) -> str:
-    """
-    Reduce a user-supplied filename to a safe display value.
-
-    We keep the original name for citations but strip directory components
-    and control characters so it cannot be used for path traversal.
-    """
-    if not filename:
-        return "unknown"
-    name = Path(str(filename)).name
-    name = re.sub(r"[\x00-\x1f\x7f]", "", name).strip()
-    return name or "unknown"
-
-
-def _iso_date(year, month, day) -> Optional[str]:
-    try:
-        return datetime(int(year), int(month), int(day)).date().isoformat()
-    except (TypeError, ValueError):
-        return None
-
-
-def extract_document_date(text: str) -> str:
-    """
-    Extract a document date and normalise it to ISO where possible.
-
-    Only explicit document/visit/exam date labels are considered; dates of
-    birth and treatment dates inside prose are ignored.  If no date can be
-    parsed, an empty string is returned rather than a guessed value.
-    """
-    if not text:
-        return ""
-
-    for label_match in _DATE_LABEL_PATTERN.finditer(text):
-        window = text[label_match.end(): label_match.end() + 40]
-        for pattern in _DATE_PATTERNS:
-            match = pattern.search(window)
-            if not match:
-                continue
-            groups = match.groups()
-            if len(groups) != 3:
-                continue
-            first, second, third = groups
-
-            # YYYY-MM-DD
-            if pattern is _DATE_PATTERNS[0]:
-                iso = _iso_date(first, second, third)
-            # DD-MM-YYYY / DD/MM/YYYY
-            elif pattern is _DATE_PATTERNS[1]:
-                iso = _iso_date(third, second, first)
-            # DD-Mon-YYYY
-            elif pattern is _DATE_PATTERNS[2]:
-                month = _MONTHS.get(second.lower())
-                iso = _iso_date(third, month, first) if month else None
-            # Month DD, YYYY
-            else:
-                month = _MONTHS.get(first.lower())
-                iso = _iso_date(third, month, second) if month else None
-
-            if iso:
-                return iso
-            return match.group(0).strip()
-    return ""
+def _field(document: Any, name: str, default: Any = "") -> Any:
+    """Read a field from a canonical document or a legacy mapping."""
+    if isinstance(document, ClinicalDocument):
+        return getattr(document, name, default)
+    return document.get(name, default)
 
 
 def build_document_record(
@@ -167,52 +74,29 @@ def build_document_record(
     patient_id: str,
     upload_timestamp: Optional[str] = None,
 ) -> Dict:
-    """
-    Convert a processed file result into a normalised RAG document record.
+    """Convert a loader result into a normalised RAG document record.
+
+    Retained as a public helper for tests and integrations; the application
+    pipeline builds :class:`ClinicalDocument` objects directly.
     """
     if not isinstance(processed_file, dict):
         raise ValueError("processed_file must be a dictionary.")
-
-    patient_id = str(patient_id or "").strip()
-    if not patient_id:
-        raise ValueError("A patient_id is required when building a document record.")
-
-    filename = safe_filename(processed_file.get("filename", "unknown"))
-    text = processed_file.get("text", "") or ""
-    content_hash = document_content_hash(text)
-    # Stable per patient + filename so a corrected re-upload replaces the
-    # previous version instead of creating a duplicate document.
-    document_id = hashlib.sha256(f"{patient_id}|{filename}".encode("utf-8")).hexdigest()[:16]
-
-    pages = processed_file.get("pages") or []
-    if not pages and text:
-        pages = [{"page_number": None, "text": text}]
-
-    if upload_timestamp is None:
-        upload_timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-    return {
-        "patient_id": patient_id,
-        "document_id": document_id,
-        "filename": filename,
-        "file_type": processed_file.get("file_type", ""),
-        "text": text,
-        "pages": pages,
-        "content_hash": content_hash,
-        "upload_timestamp": upload_timestamp,
-        "document_date": extract_document_date(text),
-    }
+    document = ClinicalDocument.from_processed_file(
+        processed_file,
+        patient_id,
+        upload_timestamp=upload_timestamp,
+    )
+    return document.as_index_record()
 
 
 def index_documents(
-    documents: Iterable[Dict],
+    documents: Iterable[Any],
     embedding_service,
     vector_store: VectorStore,
     config=None,
     force: bool = False,
 ) -> Dict:
-    """
-    Chunk, embed and store documents for one patient.
+    """Chunk, embed and store documents for one patient.
 
     Unchanged documents are skipped by comparing their content hash with the
     metadata already stored in ChromaDB, so re-running this on every question
@@ -220,10 +104,10 @@ def index_documents(
 
     Returns:
         dict with success, indexed, updated, skipped, chunks_indexed,
-        errors, warnings, and documents (per-document status).
+        errors, warnings, and per-document statuses.
     """
     config = config or DEFAULT_CONFIG
-    result = {
+    result: Dict[str, Any] = {
         "success": True,
         "indexed": 0,
         "updated": 0,
@@ -235,20 +119,27 @@ def index_documents(
     }
 
     for document in documents or []:
-        document_id = document.get("document_id", "")
+        try:
+            record = _as_record(document)
+        except TypeError as error:
+            result["errors"].append(str(error))
+            result["success"] = False
+            continue
+
+        document_id = record.get("document_id", "")
         try:
             status, warning = _index_single_document(
-                document, embedding_service, vector_store, config, force
+                record, embedding_service, vector_store, config, force
             )
         except (EmbeddingServiceError, VectorStoreError) as error:
             logger.error("Indexing failed for document %s: %s", document_id, error)
-            status = _error_status(document, error)
-            result["errors"].append(f"{document.get('filename', 'unknown')}: {error}")
+            status = _error_status(record, error)
+            result["errors"].append(f"{record.get('filename', 'unknown')}: {error}")
             result["success"] = False
         except Exception as error:  # defensive: one bad file must not stop the rest
             logger.exception("Unexpected indexing error for document %s", document_id)
-            status = _error_status(document, error)
-            result["errors"].append(f"{document.get('filename', 'unknown')}: {error}")
+            status = _error_status(record, error)
+            result["errors"].append(f"{record.get('filename', 'unknown')}: {error}")
             result["success"] = False
         else:
             _tally_document(result, status, warning)
@@ -264,9 +155,8 @@ def _index_single_document(
     vector_store: VectorStore,
     config,
     force: bool,
-) -> tuple:
-    """
-    Index one document and return ``(status, warning)``.
+) -> tuple[Dict, Optional[str]]:
+    """Index one document and return ``(status, warning)``.
 
     ``status["status"]`` is one of: indexed, updated, unchanged, empty.
     """
@@ -274,7 +164,11 @@ def _index_single_document(
     patient_id = document.get("patient_id", "")
     document_id = document.get("document_id", "")
     content_hash = document.get("content_hash", "")
-    status = {"filename": filename, "document_id": document_id, "status": "pending"}
+    status: Dict[str, Any] = {
+        "filename": filename,
+        "document_id": document_id,
+        "status": "pending",
+    }
 
     if not patient_id or not document_id:
         raise ValueError("Document is missing patient_id or document_id.")
@@ -324,7 +218,7 @@ def _error_status(document: Dict, error: Exception) -> Dict:
     }
 
 
-def _tally_document(result: Dict, status: Dict, warning) -> None:
+def _tally_document(result: Dict, status: Dict, warning: Optional[str]) -> None:
     """Update the aggregate counters for one successfully processed document."""
     if warning:
         result["warnings"].append(warning)
@@ -341,14 +235,13 @@ def _tally_document(result: Dict, status: Dict, warning) -> None:
 
 
 def ensure_documents_indexed(
-    documents: Iterable[Dict],
+    documents: Iterable[Any],
     components: Dict,
     force: bool = False,
 ) -> Dict:
-    """
-    Index documents through an already-built RAG component bundle.
+    """Index documents through an already-built RAG component bundle.
 
-    This is the backend entry point used by the Streamlit UI.  It also
+    This is the backend entry point used by the application service.  It also
     invalidates the patient's cached BM25 index because the chunk set changed.
     """
     documents = list(documents or [])
@@ -372,15 +265,14 @@ def ensure_documents_indexed(
         force=force,
     )
 
-    patient_id = documents[0].get("patient_id", "")
+    patient_id = _field(documents[0], "patient_id", "")
     if patient_id:
         components["hybrid_retriever"].invalidate(patient_id)
     return result
 
 
 def build_rag_components(config=None, embedding_service=None, vector_store=None):
-    """
-    Build the retrieval and generation objects used by the Streamlit UI.
+    """Build the retrieval and generation objects used by the application.
 
     Models are lazy: creating these objects does not download anything until
     the first embedding or rerank call.

@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 
 from pydantic import ValidationError
 
-from backend.schema import BiomarkerItem, ClinicalData, create_validation_result
+from domain.clinical import BiomarkerItem, ClinicalData, create_validation_result
 
 logger = logging.getLogger(__name__)
 

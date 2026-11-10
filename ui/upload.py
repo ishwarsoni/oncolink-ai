@@ -1,10 +1,14 @@
 """
-upload.py - File upload, document processing, and extracted-text display.
+upload.py - File upload rendering and extracted-text display.
+
+Reading files, building canonical documents and recording ingest status live
+in ``application.ingestion`` / ``application.intelligence``.  This module only
+renders the uploader and starts the ingestion workflow.
 """
 
 import streamlit as st
 
-from backend.document_loader import process_uploaded_file
+from ui.session import get_intelligence_service
 
 
 def create_file_uploader():
@@ -65,22 +69,41 @@ def create_process_button(uploaded_files):
             disabled=not uploaded_files,
         )
         if process_clicked:
+            service = get_intelligence_service()
             with st.spinner("Reading documents... Please wait."):
-                results = [process_uploaded_file(uploaded_file) for uploaded_file in uploaded_files]
-                _store_processed_files(results)
-            st.success(f"✅ Successfully processed {len(results)} document(s)!")
+                ingestion = service.ingest(uploaded_files)
+                _store_processed_files(ingestion)
+
+            if ingestion.has_documents:
+                st.success(
+                    f"✅ Successfully processed {len(ingestion.documents)} document(s)!"
+                )
+            else:
+                st.error("❌ No readable documents were found in this upload.")
+            for error in ingestion.errors:
+                st.error(error)
+            for warning in ingestion.warnings:
+                st.warning(warning)
 
     return st.session_state.get("processing_done", False)
 
 
-def _store_processed_files(results):
-    """Persist processed files and invalidate RAG state that depends on them."""
-    st.session_state["processed_files"] = results
+def _store_processed_files(ingestion):
+    """Persist display records and invalidate state that depends on them."""
+    st.session_state["processed_files"] = list(ingestion.display_records)
     st.session_state["processing_done"] = True
 
-    # New documents make the previous index and chat context unreliable.
-    st.session_state["rag_index_result"] = None
-    st.session_state["rag_index_signature"] = None
+    # New documents make the previous extraction, index and chat unreliable.
+    for key in (
+        "extraction_result",
+        "per_doc_results",
+        "extraction_done",
+        "harmonized_data",
+        "conflicts",
+        "summary",
+        "harmonization_done",
+    ):
+        st.session_state[key] = None
     st.session_state["rag_chat"] = []
 
 

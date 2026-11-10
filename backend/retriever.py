@@ -19,7 +19,7 @@ import logging
 import re
 from typing import Dict, Iterable, List, Optional
 
-from backend.config import DEFAULT_CONFIG
+from infrastructure.config import DEFAULT_CONFIG
 
 logger = logging.getLogger(__name__)
 

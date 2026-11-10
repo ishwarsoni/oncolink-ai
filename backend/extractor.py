@@ -11,13 +11,14 @@ as an error instead of reaching the UI as clinical data.
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from backend.json_parser import clean_llm_response, parse_json_safely
-from backend.llm_client import call_llm, create_nvidia_client
 from backend.normalizer import run_normalization_pipeline
 from backend.prompt_builder import build_extraction_prompt
 from backend.validator import validate_clinical_data
+from domain.documents import ClinicalDocument
+from infrastructure.llm import call_llm, create_nvidia_client
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,12 @@ def _new_extraction_result() -> Dict[str, Any]:
     }
 
 
-def run_extraction(document_text: str) -> Dict[str, Any]:
+def run_extraction(document_text: str, client: Optional[Any] = None) -> Dict[str, Any]:
     """
     Run the complete extraction pipeline on document text.
+
+    ``client`` can be shared across documents so a batch reuses one HTTP
+    connection pool.  When omitted, a client is created for this call.
 
     Returns ``success``, ``data``, ``errors``, ``warnings``, ``raw_response``,
     and the detailed ``validation`` / ``normalization`` results.
@@ -54,9 +58,10 @@ def run_extraction(document_text: str) -> Dict[str, Any]:
         (len(system_prompt) + len(user_prompt)) // 4,
     )
 
-    client = _create_client(result)
     if client is None:
-        return result
+        client = _create_client(result)
+        if client is None:
+            return result
 
     response_text = _call_extraction_llm(client, system_prompt, user_prompt, result)
     if response_text is None:
@@ -195,12 +200,50 @@ def attempt_json_recovery(text: str) -> Optional[str]:
     return result["json_string"] if result["success"] else None
 
 
-def extract_from_multiple_documents(processed_files: List[Dict]) -> Dict[str, Any]:
-    """Combine all successfully read documents and extract once."""
+def _document_text(document: Any) -> str:
+    """Read text from a canonical document or a legacy loader result."""
+    if isinstance(document, ClinicalDocument):
+        return document.text
+    if isinstance(document, Mapping):
+        return document.get("text", "") or ""
+    raise TypeError("Documents must be ClinicalDocument instances or mappings.")
+
+
+def _document_filename(document: Any) -> str:
+    """Read the display filename from a canonical document or mapping."""
+    if isinstance(document, ClinicalDocument):
+        return document.filename
+    return document.get("filename", "unknown")
+
+
+def _document_success(document: Any) -> bool:
+    """Return whether a document can be sent for extraction."""
+    if isinstance(document, ClinicalDocument):
+        return True
+    return bool(document.get("success", False))
+
+
+def _failed_document_result(document: Any, errors: List[str]) -> Dict[str, Any]:
+    """Build a per-document extraction failure with the document filename."""
+    result = _new_extraction_result()
+    result["filename"] = _document_filename(document)
+    result["errors"].extend(errors)
+    return result
+
+
+def extract_from_multiple_documents(
+    documents: List[Any], client: Optional[Any] = None
+) -> Dict[str, Any]:
+    """Combine all successfully read documents and extract once.
+
+    The combined pass is intentionally separate from per-document extraction:
+    it gives the model cross-document context, while per-document results keep
+    provenance for harmonization and conflict detection.
+    """
     combined_text = "".join(
-        f"--- Document: {item['filename']} ---\n{item['text']}\n\n"
-        for item in processed_files
-        if item["success"]
+        f"--- Document: {_document_filename(item)} ---\n{_document_text(item)}\n\n"
+        for item in documents
+        if _document_success(item)
     )
 
     if not combined_text.strip():
@@ -208,23 +251,37 @@ def extract_from_multiple_documents(processed_files: List[Dict]) -> Dict[str, An
         result["errors"].append("No text could be extracted from the uploaded documents.")
         return result
 
-    return run_extraction(combined_text)
+    return run_extraction(combined_text, client=client)
 
 
-def extract_each_document(processed_files: List[Dict]) -> List[Dict[str, Any]]:
+def extract_each_document(
+    documents: List[Any], client: Optional[Any] = None
+) -> List[Dict[str, Any]]:
     """
     Extract every document independently, in parallel.
 
     Per-document results feed harmonization and conflict detection, which need
     to know which document supplied each value.  Results are returned in the
-    same order as ``processed_files`` so "first value wins" stays predictable.
+    same order as ``documents`` so "first value wins" stays predictable.
+
+    One NVIDIA client is shared across the batch to reuse connection pooling;
+    the worker count is bounded so a large upload cannot exhaust the API.
     """
-    results: List[Optional[Dict[str, Any]]] = [None] * len(processed_files)
+    documents = list(documents or [])
+    results: List[Optional[Dict[str, Any]]] = [None] * len(documents)
+
+    if client is None:
+        setup = _new_extraction_result()
+        client = _create_client(setup)
+        if client is None:
+            # Configuration failed before any request: report it per document
+            # rather than pretending the extraction ran.
+            return [_failed_document_result(doc, setup["errors"]) for doc in documents]
 
     with ThreadPoolExecutor(max_workers=_MAX_EXTRACTION_WORKERS) as executor:
         futures = {
-            executor.submit(_extract_single, item): index
-            for index, item in enumerate(processed_files)
+            executor.submit(_extract_single, item, client): index
+            for index, item in enumerate(documents)
         }
         for future in as_completed(futures):
             results[futures[future]] = future.result()
@@ -232,16 +289,14 @@ def extract_each_document(processed_files: List[Dict]) -> List[Dict[str, Any]]:
     return [result for result in results if result is not None]
 
 
-def _extract_single(file_result: Dict) -> Dict[str, Any]:
-    """Extract one processed file and tag the result with its filename."""
-    if not file_result["success"]:
-        result = _new_extraction_result()
-        result["filename"] = file_result["filename"]
-        result["errors"].append(
-            f"File could not be read: {file_result.get('text', 'Unknown error')}"
+def _extract_single(document: Any, client: Any) -> Dict[str, Any]:
+    """Extract one document and tag the result with its filename."""
+    if not _document_success(document):
+        return _failed_document_result(
+            document,
+            [f"File could not be read: {_document_text(document) or 'Unknown error'}"],
         )
-        return result
 
-    extraction = run_extraction(file_result["text"])
-    extraction["filename"] = file_result["filename"]
+    extraction = run_extraction(_document_text(document), client=client)
+    extraction["filename"] = _document_filename(document)
     return extraction

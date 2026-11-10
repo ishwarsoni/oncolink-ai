@@ -29,7 +29,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.citation_manager import build_citations, build_evidence_index, page_label
-from backend.config import DEFAULT_CONFIG
+from infrastructure.config import DEFAULT_CONFIG
 from backend.json_parser import clean_llm_response, parse_json_safely
 
 logger = logging.getLogger(__name__)
@@ -216,7 +216,7 @@ class RAGEngine:
         if self._llm_fn is not None:
             return self._llm_fn(system_prompt, user_prompt)
 
-        from backend.llm_client import call_llm, create_nvidia_client
+        from infrastructure.llm import call_llm, create_nvidia_client
 
         if self._client is None:
             self._client = create_nvidia_client()

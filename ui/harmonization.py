@@ -1,19 +1,17 @@
 """
 harmonization.py - Harmonization, conflict, summary, and status UI.
 
-The merging and summary logic lives in ``backend/``; this module triggers it,
-stores the results, and renders them.
+The merging and summary logic lives in ``application.clinical`` /
+``backend``; this module triggers it, stores the results, and renders them.
 """
 
 import json
 
 import streamlit as st
 
-from backend.conflict_detector import detect_conflicts
-from backend.harmonizer import harmonize_extractions
-from backend.summarizer import generate_patient_summary
 from ui.export import _text_to_pdf_bytes
 from ui.extraction import display_structured_clinical_data
+from ui.session import get_intelligence_service
 from ui.styles import _gradient_divider
 
 
@@ -58,29 +56,20 @@ def _render_header():
 
 def _run_harmonization():
     """Harmonize the per-document extractions and store all derived results."""
-    per_document_results = st.session_state.get("per_doc_results", [])
+    service = get_intelligence_service()
 
     with st.spinner("Harmonizing data across documents..."):
-        harmonized = harmonize_extractions(per_document_results)
-        conflicts = detect_conflicts(per_document_results)
+        outcome = service.harmonize()
 
-        if harmonized["success"]:
-            summary = generate_patient_summary(
-                harmonized["data"],
-                harmonized.get("field_sources"),
-                conflicts.get("conflicts", []),
-            )
-        else:
-            summary = {}
-
-        st.session_state["harmonized_data"] = harmonized
-        st.session_state["conflicts"] = conflicts
-        st.session_state["summary"] = summary
+        st.session_state["harmonized_data"] = outcome.harmonized
+        st.session_state["conflicts"] = outcome.conflicts
+        st.session_state["summary"] = outcome.summary
         st.session_state["harmonization_done"] = True
 
-    if harmonized["success"]:
+    if outcome.harmonized.get("success"):
         st.success(
-            f"✅ Harmonization complete! {harmonized['documents_merged']} document(s) merged."
+            "✅ Harmonization complete! "
+            f"{outcome.harmonized.get('documents_merged', 0)} document(s) merged."
         )
 
 

@@ -1,43 +1,36 @@
 """
-session.py - Logging, per-session RAG state, and API-key resolution.
+session.py - Logging, per-session workflow state, and API-key resolution.
 
 Streamlit re-runs the whole script on every interaction, so anything that
 must survive a rerun lives in ``st.session_state``.  This module centralizes
-that setup and the API-key lookup order used by the rest of the UI.
+that setup, the API-key lookup order, and the cached document-intelligence
+service used by the UI.
 """
 
 import logging
 import os
-from pathlib import Path
 
 import streamlit as st
 
-from backend.config import RAGConfig
-from backend.rag_indexer import generate_patient_id
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-LOG_FILE = PROJECT_ROOT / "logs" / "application.log"
+from application.intelligence import DocumentIntelligenceService
+from domain.documents import generate_patient_id
+from infrastructure.config import RAGConfig
+from infrastructure.logging import setup_logging as _setup_file_logging
 
 # Placeholder shipped in the example secrets file; it must not be treated as
 # a real key.
 _PLACEHOLDER_API_KEY = "nvapi-your-key-here"
+_startup_logged = False
 
 
 def setup_logging() -> None:
-    """Configure file logging for the application."""
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    """Configure rotating application logging once per process."""
+    global _startup_logged
 
-    logging.basicConfig(
-        filename=str(LOG_FILE),
-        # Start each run with a clean log; set to "a" to keep history.
-        filemode="w",
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    logging.info("=" * 60)
-    logging.info("ONCOLINK APPLICATION STARTED")
-    logging.info("=" * 60)
+    _setup_file_logging()
+    if not _startup_logged:
+        logging.info("ONCOLINK APPLICATION STARTED")
+        _startup_logged = True
 
 
 def initialize_rag_session_state() -> None:
@@ -51,9 +44,7 @@ def initialize_rag_session_state() -> None:
     defaults = {
         "patient_id": generate_patient_id,
         "rag_chat": list,
-        "rag_components": lambda: None,
-        "rag_index_result": lambda: None,
-        "rag_index_signature": lambda: None,
+        "intelligence_service": lambda: None,
     }
     for key, factory in defaults.items():
         if key not in st.session_state:
@@ -75,6 +66,51 @@ def _default_rag_settings() -> dict:
         "rerank": config.rerank_enabled,
         "threshold": max(-1.0, min(1.0, float(threshold))),
     }
+
+
+def get_intelligence_service() -> DocumentIntelligenceService:
+    """Return the workflow service for the current patient case.
+
+    The service is cached in session state so canonical documents and lazy RAG
+    components survive Streamlit reruns.  If the case ID changes, a fresh
+    service is created so one case's data can never leak into another.
+    """
+    patient_id = st.session_state.get("patient_id") or generate_patient_id()
+    st.session_state["patient_id"] = patient_id
+
+    service = st.session_state.get("intelligence_service")
+    if service is None or service.patient_id != patient_id:
+        service = DocumentIntelligenceService(patient_id=patient_id)
+        st.session_state["intelligence_service"] = service
+    return service
+
+
+def reset_case_state() -> DocumentIntelligenceService:
+    """Start a new patient case and clear every case-scoped UI value."""
+    service = st.session_state.get("intelligence_service")
+    if service is None:
+        service = DocumentIntelligenceService()
+
+    service.reset()
+    st.session_state["patient_id"] = service.patient_id
+    st.session_state["intelligence_service"] = service
+
+    for key in (
+        "processed_files",
+        "processing_done",
+        "extraction_result",
+        "per_doc_results",
+        "extraction_done",
+        "harmonized_data",
+        "conflicts",
+        "summary",
+        "harmonization_done",
+        "rag_chat",
+        "document_uploader",
+    ):
+        st.session_state.pop(key, None)
+
+    return service
 
 
 def resolve_api_key(render_input: bool = False):

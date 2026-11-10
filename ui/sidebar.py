@@ -4,8 +4,7 @@ sidebar.py - Sidebar navigation, API status, and patient-case controls.
 
 import streamlit as st
 
-from backend.rag_indexer import generate_patient_id
-from ui.session import resolve_api_key
+from ui.session import reset_case_state, resolve_api_key
 from ui.styles import _gradient_divider
 
 
@@ -56,10 +55,7 @@ def create_sidebar():
         "case only. Start a new case before uploading another patient's records."
     )
     if st.sidebar.button("🆕 Start new case", use_container_width=True):
-        st.session_state["patient_id"] = generate_patient_id()
-        st.session_state["rag_chat"] = []
-        st.session_state["rag_index_result"] = None
-        st.session_state["rag_index_signature"] = None
+        reset_case_state()
         st.rerun()
 
     # --- Version Info at the bottom ---

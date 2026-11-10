@@ -42,11 +42,6 @@ def read_pdf_pages(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         pdf_document.close()
 
 
-def read_pdf(file_bytes: bytes, filename: str) -> str:
-    """Return only the text; kept for callers that do not need page metadata."""
-    return read_pdf_pages(file_bytes, filename)["text"]
-
-
 def _error_result(filename: str, error: Exception) -> Dict[str, Any]:
     """Return the standard failure shape for a PDF that could not be read."""
     return {
