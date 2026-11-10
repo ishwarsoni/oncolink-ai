@@ -1,0 +1,59 @@
+MEDICAL ONCOLOGY CONSULTATION
+Clinic: Northside Cancer Centre, Bengaluru
+Date: 03-Feb-2026
+
+PATIENT INFORMATION
+Name: Meera Krishnan
+Age: 52 years
+Gender: Female
+MRN: ONC-2026-01187
+
+CHIEF COMPLAINT
+Painless lump in the left breast noticed approximately 10 weeks ago.
+
+HISTORY OF PRESENTING ILLNESS
+52-year-old postmenopausal woman with no previous cancer history. She felt a
+firm lump in the upper outer quadrant of the left breast and reports mild
+intermittent discomfort but no skin change, nipple discharge, fever, or weight
+loss. Family history: mother diagnosed with breast cancer at age 61. No known
+BRCA1/BRCA2 pathogenic variant; genetic counselling is pending.
+
+IMAGING
+Diagnostic mammography and breast ultrasound on 28-Jan-2026: 2.8 cm irregular,
+spiculated mass in the left upper outer quadrant at the 10 o'clock position,
+BI-RADS 5. Left axillary lymph node 1.4 cm with cortical thickening, suspicious
+for metastasis. Staging CT of chest, abdomen, and pelvis plus bone scan on
+30-Jan-2026 showed no distant metastasis.
+
+BIOPSY
+Ultrasound-guided core needle biopsy of the left breast mass on 30-Jan-2026.
+Histopathology: invasive ductal carcinoma, no special type, Nottingham grade 2.
+ER positive 90%, PR positive 70%, HER2 negative (IHC 1+), Ki-67 25%.
+
+DIAGNOSIS
+Stage IIB (cT2 cN1 cM0) invasive ductal carcinoma of the left breast,
+ER-positive, PR-positive, HER2-negative.
+
+ECOG PERFORMANCE STATUS
+ECOG 0: fully active, able to carry on all pre-disease performance without
+restriction.
+
+CURRENT MEDICATIONS
+Vitamin D3 1000 IU once daily. No antihypertensive, anticoagulant, or regular
+analgesic medication.
+
+MANAGEMENT PLAN
+Breast-conserving surgery with sentinel lymph node biopsy, followed by adjuvant
+chemotherapy with docetaxel and cyclophosphamide for 4 cycles, whole-breast
+radiotherapy, and endocrine therapy with letrozole. Baseline complete blood
+count, liver function tests, renal panel, and electrocardiogram ordered.
+
+FOLLOW-UP PLAN
+Post-operative surgical review 2 weeks after surgery. Medical oncology review
+after the surgical pathology report is available.
+
+NEXT STEPS
+Book surgery and repeat hormone receptor and HER2 testing on the surgical
+specimen.
+
+Synthetic document for software testing. Not a real patient.

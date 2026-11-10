@@ -1,0 +1,51 @@
+MEDICAL ONCOLOGY PROGRESS NOTE
+Clinic: Northside Cancer Centre, Bengaluru
+Date: 02-Apr-2026
+
+PATIENT INFORMATION
+Name: Meera Krishnan
+Age: 54 years
+Gender: Female
+MRN: ONC-2026-01187
+
+DIAGNOSIS
+Stage IIIA (T2 N2 M0) invasive ductal carcinoma of the left breast,
+ER-positive, PR-positive, HER2-negative.
+
+ECOG PERFORMANCE STATUS
+ECOG 1: restricted in physically strenuous activity but ambulatory and able to
+carry out light work.
+
+HISTORY OF PRESENTING ILLNESS
+Patient underwent left breast lumpectomy with sentinel lymph node biopsy on
+20-Feb-2026. Surgical pathology showed a 2.6 cm grade 2 invasive ductal
+carcinoma, one positive sentinel node, clear margins, ER 80%, PR 60%, HER2
+negative (IHC 1+), Ki-67 30%. She has recovered well from surgery and presents
+to start adjuvant chemotherapy.
+
+PREVIOUS TREATMENT
+Left breast lumpectomy with sentinel lymph node biopsy, 20-Feb-2026.
+
+CURRENT MEDICATIONS
+Docetaxel 75 mg/m2 and cyclophosphamide 600 mg/m2, cycle 1 administered today.
+Dexamethasone 8 mg twice daily for 3 days starting the day before chemotherapy.
+Ondansetron 8 mg every 8 hours as needed for nausea. Pegfilgrastim 6 mg
+subcutaneous on day 2. Vitamin D3 1000 IU daily.
+
+ADVERSE EVENTS
+No chemotherapy-related adverse events yet; treatment administered today.
+
+MANAGEMENT PLAN
+Adjuvant TC chemotherapy every 21 days for 4 cycles. Complete blood count on
+day 10 of each cycle and before every subsequent cycle. Prophylactic
+antiemetics and growth factor support as prescribed.
+
+FOLLOW-UP PLAN
+Cycle 2 on 23-Apr-2026. Telephone review at day 10 to assess blood counts and
+toxicity.
+
+NEXT STEPS
+Complete 4 cycles of TC chemotherapy, then proceed to whole-breast
+radiotherapy, followed by letrozole for 5 years.
+
+Synthetic document for software testing. Not a real patient.

@@ -1,0 +1,48 @@
+SURGICAL PATHOLOGY REPORT
+Laboratory: Central Pathology Services, Bengaluru
+Date of report: 10-Mar-2026
+Date specimen received: 20-Feb-2026
+
+PATIENT INFORMATION
+Name: Meera Krishnan
+Age: 52 years
+Gender: Female
+MRN: ONC-2026-01187
+
+SPECIMEN
+Left breast lumpectomy with wire localisation, plus sentinel lymph node biopsy
+(3 nodes submitted).
+
+MACROSCOPY
+Received a 7.0 x 5.5 x 3.5 cm segment of breast tissue with a 3.0 cm wire. A
+firm, tan-white tumour measuring 2.6 x 2.2 x 1.8 cm is identified 2 mm from the
+anterior margin. The remaining breast tissue is unremarkable.
+
+MICROSCOPY
+Invasive ductal carcinoma, no special type. Nottingham grade 2 (tubule
+formation 3, nuclear pleomorphism 2, mitotic count 2). Lymphovascular invasion
+is present. The closest inked margin is anterior at 2 mm; all other margins are
+clear by at least 10 mm. No ductal carcinoma in situ is identified.
+
+LYMPH NODES
+One of three sentinel lymph nodes contains a 4 mm macrometastasis. No
+extranodal extension. The remaining two sentinel nodes are negative.
+
+BIOMARKERS
+ER: positive in 80% of tumour nuclei, strong intensity.
+PR: positive in 60% of tumour nuclei.
+HER2: negative (IHC 1+).
+Ki-67 proliferation index: 30%.
+
+PATHOLOGIC STAGE
+pT2 pN1a (sn) cM0, Stage IIB.
+
+DIAGNOSIS
+Invasive ductal carcinoma of the left breast, Nottingham grade 2,
+ER-positive, PR-positive, HER2-negative, pT2 pN1a.
+
+RECOMMENDATION
+Adjuvant chemotherapy, whole-breast radiotherapy, and endocrine therapy.
+Refer to medical oncology for treatment planning.
+
+Synthetic document for software testing. Not a real patient.

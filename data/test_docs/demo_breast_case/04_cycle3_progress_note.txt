@@ -1,0 +1,48 @@
+MEDICAL ONCOLOGY PROGRESS NOTE
+Clinic: Northside Cancer Centre, Bengaluru
+Date: 14-May-2026
+
+PATIENT INFORMATION
+Name: Meera Krishnan
+Age: 52 years
+Gender: Female
+MRN: ONC-2026-01187
+
+DIAGNOSIS
+Stage IIB (pT2 pN1a cM0) invasive ductal carcinoma of the left breast.
+
+BIOMARKERS
+ER 80%, PR 60%, HER2 negative (IHC 1+), Ki-67 30% (surgical pathology,
+20-Feb-2026).
+
+ECOG PERFORMANCE STATUS
+ECOG 0: fully active, able to carry on all pre-disease performance without
+restriction.
+
+PREVIOUS TREATMENT
+Left breast lumpectomy with sentinel lymph node biopsy, 20-Feb-2026.
+Two completed cycles of adjuvant docetaxel and cyclophosphamide.
+
+CURRENT MEDICATIONS
+Docetaxel 75 mg/m2 and cyclophosphamide 600 mg/m2, cycle 3 administered today.
+Pegfilgrastim 6 mg subcutaneous on day 2. Ondansetron 8 mg as needed for
+nausea. Vitamin D3 1000 IU daily.
+
+ADVERSE EVENTS
+Grade 2 fatigue. Grade 1 peripheral neuropathy with reduced fine touch in both
+feet. Grade 1 arthralgia. No febrile neutropenia, no hospital admission, and no
+dose reduction required.
+
+MANAGEMENT PLAN
+Continue TC chemotherapy. Cycle 4 is scheduled for 04-Jun-2026. Complete blood
+count before each cycle. Review neuropathy at the next visit and consider
+physiotherapy if symptoms progress.
+
+FOLLOW-UP PLAN
+Cycle 4 on 04-Jun-2026. Radiotherapy planning appointment after the final cycle.
+
+NEXT STEPS
+Complete cycle 4 of TC chemotherapy, proceed to whole-breast radiotherapy, and
+start letrozole 2.5 mg daily after radiotherapy.
+
+Synthetic document for software testing. Not a real patient.
