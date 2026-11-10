@@ -799,6 +799,35 @@ persistent ChromaDB and hybrid retrieval. Without `NVIDIA_API_KEY` it reports
 11 passed, 0 failed, and the real LLM check as **SKIPPED**. It never reports a
 skipped LLM check as passed.
 
+### Live integration suites
+
+Four opt-in suites exercise the real NVIDIA Nemotron endpoint and are never
+part of the offline suite. They refuse to run unless live testing is enabled,
+never print the API key, and never count a skipped check as passed.
+
+```powershell
+$env:ONCOLINK_TEST_LIVE = "1"
+
+python scripts/test_live_nvidia.py      # connectivity, real extraction, harmonization, errors
+python scripts/test_live_rag.py         # real answers, citations, pages, insufficient evidence
+python scripts/test_live_isolation.py   # two cases, updates, deletion, branch independence
+
+# Real cross-encoder; downloads the model only when explicitly allowed.
+$env:ONCOLINK_PROVISION_RERANKER = "1"
+python scripts/test_live_reranker.py
+```
+
+With a valid key against `nvidia/nemotron-3-ultra-550b-a55b` and the real
+models provisioned, the suites report 51, 25, 42 and 13 checks respectively
+(131 total). `test_live_reranker.py` reports **SKIPPED** instead of passing
+when the cross-encoder is not cached and `ONCOLINK_PROVISION_RERANKER` is not
+set.
+
+`test_live_rag.py` contains two citation-validation checks that feed a
+hand-written payload to the validator while using real retrieval. They prove
+fabricated citations are rejected; they are labelled in the output and are not
+presented as model output.
+
 ---
 
 ## Deployment Notes
@@ -917,8 +946,11 @@ first, or accept citations without page numbers.
   Model names can change; override `ONCOLINK_RAG_MODEL` if necessary.
 - **Storage growth is not pruned automatically.** Use the UI delete action or
   remove `storage/chroma_db/` to reset local vectors.
-- **Live tests** require an NVIDIA API key and are excluded from the offline
-  suite.
+- **Live tests** require an NVIDIA API key, model downloads, and network access;
+  they are excluded from the offline suite.
+- **Deployment verification** covers static configuration and local startup.
+  Streamlit Community Cloud itself was not deployed or tested, so cloud
+  secrets, memory limits, and multi-user behavior remain unverified.
 
 ---
 
