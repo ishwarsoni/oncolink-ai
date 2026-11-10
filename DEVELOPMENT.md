@@ -189,7 +189,7 @@ python scripts/test_workflow.py
 python scripts/test_app_smoke.py
 ```
 
-Expected result: **408 passed, 0 failed**. No API key, model download or
+Expected result: **409 passed, 0 failed**. No API key, model download or
 network access is required.
 
 Legacy phase scripts are also available:
@@ -359,7 +359,7 @@ populated. DOCX/TXT intentionally report “Page not available”.
 ### Definition of done
 
 1. The change is in the correct layer.
-2. Offline suites still pass (408 checks).
+2. Offline suites still pass (409 checks).
 3. New behavior has a regression check.
 4. Documentation (`README.md`, `ARCHITECTURE.md` if boundaries changed) is updated.
 5. No secrets, logs, vector data or `.env` files are staged.

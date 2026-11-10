@@ -15,6 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from streamlit.testing.v1 import AppTest
 
 from ui.export import _pdf_output_bytes, _text_to_pdf_bytes
+from ui.styles import _CSS
 
 PASS = 0
 FAIL = 0
@@ -351,6 +352,18 @@ check("New-case reset clears chat", app.session_state["rag_chat"] == [])
 check(
     "New-case reset returns to the record view",
     app.session_state["workspace_view"] == "Patient Record",
+)
+
+# ---------------------------------------------------------------------------
+# Theme font scope
+# ---------------------------------------------------------------------------
+print("\n--- Theme fonts ---")
+
+check(
+    "App font override excludes Material icon spans",
+    '[class*="st-"]:not([data-testid="stIconMaterial"])' in _CSS,
+    "Streamlit renders the expander chevron as a Material Symbols ligature; "
+    "overriding its font makes the raw icon name overlap the label.",
 )
 
 # ---------------------------------------------------------------------------

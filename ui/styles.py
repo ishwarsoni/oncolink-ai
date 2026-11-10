@@ -41,9 +41,14 @@ _CSS = """
         --ol-info-soft: color-mix(in srgb, var(--ol-info) 12%, transparent);
     }
 
+    /* Streamlit renders some icons as Material Symbols ligatures (for
+       example the expander chevron).  The broad ``[class*="st-"]`` selector
+       also matches those icon spans, which replaces the icon font and makes
+       the raw ligature text (``keyboard_arrow_down``) spill across the
+       neighbouring label.  Keep icon elements out of the font override. */
     html,
     body,
-    [class*="st-"],
+    [class*="st-"]:not([data-testid="stIconMaterial"]):not([data-testid="stIcon"]),
     .stApp {
         font-family: __FONT_STACK__;
     }
