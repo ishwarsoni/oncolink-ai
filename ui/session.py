@@ -45,6 +45,7 @@ def initialize_rag_session_state() -> None:
         "patient_id": generate_patient_id,
         "rag_chat": list,
         "intelligence_service": lambda: None,
+        "workspace_view": lambda: "Patient Record",
     }
     for key, factory in defaults.items():
         if key not in st.session_state:
@@ -107,8 +108,13 @@ def reset_case_state() -> DocumentIntelligenceService:
         "harmonization_done",
         "rag_chat",
         "document_uploader",
+        "processing_notice",
+        "rag_pending_question",
+        "rag_index_notice",
     ):
         st.session_state.pop(key, None)
+
+    st.session_state["workspace_view"] = "Patient Record"
 
     return service
 

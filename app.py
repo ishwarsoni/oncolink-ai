@@ -13,18 +13,24 @@ Run with:
 import streamlit as st
 from dotenv import load_dotenv
 
-from ui.extraction import create_extraction_section
-from ui.harmonization import create_status_panel, show_harmonization_section
+from ui.components import render_product_header, render_status_strip
+from ui.patient_record import render_patient_record
 from ui.rag import create_rag_assistant_section
-from ui.session import initialize_rag_session_state, setup_logging
+from ui.session import (
+    get_intelligence_service,
+    initialize_rag_session_state,
+    setup_logging,
+)
 from ui.sidebar import create_sidebar
 from ui.styles import configure_page, create_footer, load_custom_css
 from ui.upload import (
-    create_file_uploader,
-    create_process_button,
-    display_extracted_text,
-    display_uploaded_files,
+    render_documents_intake,
+    render_documents_view,
+    render_processing_notice,
 )
+
+WORKSPACE_VIEWS = ("Patient Record", "AI Clinical Chat", "Uploaded Documents")
+DEFAULT_VIEW = WORKSPACE_VIEWS[0]
 
 
 def main():
@@ -40,51 +46,65 @@ def main():
     create_sidebar()
 
     _render_page_header()
-    st.divider()
 
-    uploaded_files = create_file_uploader()
-    st.markdown("<br>", unsafe_allow_html=True)
-    display_uploaded_files(uploaded_files)
+    if not st.session_state.get("processed_files"):
+        render_processing_notice()
+        render_documents_intake()
+        _render_case_status()
+        create_footer()
+        return
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    processing_done = create_process_button(uploaded_files)
-    display_extracted_text()
+    view = _render_workspace_navigation()
+    render_processing_notice()
 
-    create_extraction_section()
+    if view == "AI Clinical Chat":
+        create_rag_assistant_section()
+    elif view == "Uploaded Documents":
+        render_documents_view()
+    else:
+        render_patient_record()
 
-    # Harmonization is only meaningful after a successful extraction.
-    if st.session_state.get("extraction_done"):
-        show_harmonization_section()
-
-    create_rag_assistant_section()
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.divider()
-    create_status_panel(processing_done)
+    _render_case_status()
     create_footer()
 
 
 def _render_page_header():
-    """Render the logo, title, subtitle, and one-line description."""
-    col_logo, col_text = st.columns([0.08, 0.92])
-    with col_logo:
-        st.markdown(
-            '<div style="font-size:2.5rem; line-height:1;">🏥</div>',
-            unsafe_allow_html=True,
-        )
-    with col_text:
-        st.markdown('<div class="main-title">OncoLink</div>', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="main-subtitle">AI Clinical Intelligence Platform</div>',
-            unsafe_allow_html=True,
-        )
-
-    st.markdown(
-        '<div class="main-description">Upload oncology reports — referral letters, '
-        "pathology reports, lab reports, and EMR notes — and generate structured, "
-        "unified patient summaries.</div>",
-        unsafe_allow_html=True,
+    """Render the compact product banner."""
+    render_product_header(
+        title="OncoLink",
+        subtitle="Clinical intelligence workspace.",
+        description=(
+            "Turn uploaded oncology documents into a structured patient record "
+            "and ask evidence-grounded questions about the same document set."
+        ),
+        eyebrow="OncoLink · AI Clinical Intelligence",
     )
+
+
+def _render_workspace_navigation():
+    """Render the workspace switcher and return the active view name."""
+    current = st.session_state.get("workspace_view") or DEFAULT_VIEW
+    if current not in WORKSPACE_VIEWS:
+        current = DEFAULT_VIEW
+    st.session_state["workspace_view"] = current
+
+    selected = st.radio(
+        "Workspace view",
+        WORKSPACE_VIEWS,
+        key="workspace_view",
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if selected not in WORKSPACE_VIEWS:
+        selected = DEFAULT_VIEW
+    return selected
+
+
+def _render_case_status():
+    """Render the independent ingestion, clinical, and RAG stage states."""
+    service = get_intelligence_service()
+    stages = [status.as_dict() for status in service.statuses.values()]
+    render_status_strip(stages)
 
 
 if __name__ == "__main__":

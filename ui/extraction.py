@@ -10,70 +10,22 @@ import json
 
 import streamlit as st
 
+from domain.clinical import get_field_label
+from ui.components import (
+    render_biomarkers,
+    render_metric_grid,
+    render_pills,
+    render_section,
+    render_text_blocks,
+)
 from ui.session import get_intelligence_service, resolve_api_key
-from ui.styles import _gradient_divider
 
 
-def create_extraction_section():
-    """Render the extraction button, feedback, and extracted data."""
-    if "processed_files" not in st.session_state:
-        return
+def run_extraction():
+    """Run the extraction workflow once and persist its results.
 
-    st.divider()
-    _render_section_header()
-    api_ready = _render_api_warning()
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        extraction_clicked = st.button(
-            "🧠 Run AI Extraction",
-            type="primary",
-            use_container_width=True,
-            disabled=not api_ready,
-        )
-        if extraction_clicked:
-            _run_and_store_extraction()
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    _render_extraction_results()
-    st.markdown("<br>", unsafe_allow_html=True)
-
-
-def _render_section_header():
-    """Render the section title and description."""
-    st.markdown(
-        '<div style="display:flex; align-items:center; gap:0.5rem; margin-top:1.5rem;">'
-        '<span style="font-size:1.3rem;">🤖</span>'
-        '<span style="font-size:1.2rem; font-weight:700; color:#0f2b4a;">AI Clinical Extraction</span>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<p style="color:#64748b; font-size:0.9rem; margin-top:-0.3rem;">'
-        "Extract structured clinical information from all documents using NVIDIA's Nemotron-3 Ultra AI model."
-        "</p>",
-        unsafe_allow_html=True,
-    )
-
-
-def _render_api_warning() -> bool:
-    """Warn when no API key is configured and return whether one exists."""
-    api_ready = resolve_api_key() is not None
-    if not api_ready:
-        st.warning(
-            "⚠️ NVIDIA API key not found.\n\n"
-            "To enable AI extraction, please **enter your NVIDIA API Key in the sidebar input field**.\n\n"
-            "Get a free API key at: https://build.nvidia.com/"
-        )
-    return api_ready
-
-
-def _run_and_store_extraction():
-    """
-    Run combined and per-document extraction, then persist the results.
-
-    The combined result powers the main extraction view; the per-document
-    results feed harmonization and conflict detection.
+    Thin UI wrapper around ``DocumentIntelligenceService.run_clinical``; the
+    prompt, validation and normalization logic stays in the application layer.
     """
     service = get_intelligence_service()
 
@@ -83,205 +35,207 @@ def _run_and_store_extraction():
         st.session_state["extraction_result"] = run.combined
         st.session_state["per_doc_results"] = list(run.per_document)
         st.session_state["extraction_done"] = True
+
+        # A new extraction invalidates the previous merged record.
+        st.session_state["harmonized_data"] = None
+        st.session_state["conflicts"] = None
+        st.session_state["summary"] = None
         st.session_state["harmonization_done"] = False
 
-    _render_extraction_feedback(run.combined)
+    render_extraction_feedback(run.combined)
+    return run.combined
 
 
-def _render_extraction_feedback(result):
+def render_extraction_controls(
+    show_heading=True,
+    label="Run AI extraction",
+    key="run_extraction_button",
+):
+    """Render the API warning and the extraction button.
+
+    Returns the extraction result when the button was pressed in this run,
+    otherwise ``None``.  Callers can re-read session state afterwards.  The
+    label and widget key are parameters so a view can render a second control
+    (for example inside a workflow expander) without duplicating a widget ID.
+    """
+    if "processed_files" not in st.session_state:
+        return None
+
+    if show_heading:
+        render_section(
+            "AI Clinical Extraction",
+            "Extract a structured patient record from every uploaded document "
+            "using the configured NVIDIA Nemotron model.",
+        )
+
+    api_ready = _render_api_warning()
+    extraction_clicked = st.button(
+        label,
+        type="primary",
+        key=key,
+        disabled=not api_ready,
+    )
+    if extraction_clicked:
+        return run_extraction()
+    return None
+
+
+def create_extraction_section():
+    """Render the extraction button, feedback, and extracted data."""
+    if "processed_files" not in st.session_state:
+        return
+
+    render_extraction_controls(show_heading=True)
+    _render_extraction_results()
+
+
+def _render_api_warning() -> bool:
+    """Warn when no API key is configured and return whether one exists."""
+    api_ready = resolve_api_key() is not None
+    if not api_ready:
+        st.warning(
+            "NVIDIA API key not configured. Enter a key in the sidebar to enable "
+            "AI extraction and answer generation. You can still index documents "
+            "and inspect their extracted text."
+        )
+    return api_ready
+
+
+def render_extraction_feedback(result):
     """Show success, validation warnings, or the errors from a run."""
-    if result["success"]:
-        st.success("✅ AI extraction completed successfully!")
+    if result.get("success"):
+        st.success("AI extraction completed successfully.")
         for warning in result.get("warnings", []):
-            st.warning(f"⚠️ {warning}")
+            st.warning(warning)
         return
 
     errors = result.get("errors", [])
     if errors:
-        st.error("❌ Extraction failed:\n" + "\n".join(errors))
+        st.error("Extraction failed:\n" + "\n".join(errors))
     else:
-        st.error("❌ Extraction failed with an unknown error.")
+        st.error("Extraction failed with an unknown error.")
 
 
 def _render_extraction_results():
     """Render the most recent extraction result, if there is one."""
-    if "extraction_result" not in st.session_state:
+    result = st.session_state.get("extraction_result")
+    if not result:
         return
 
-    result = st.session_state["extraction_result"]
-    if result["success"]:
+    if result.get("success"):
         validation = result.get("validation", {})
         if validation and validation.get("valid"):
-            st.success("✅ Data validated against Pydantic schema")
+            st.success("Data validated against the clinical schema.")
 
         normalization = result.get("normalization", {})
         if normalization and normalization.get("success"):
-            st.info("🔄 Values normalized for consistency")
+            st.caption("Values normalized for consistency.")
 
-        display_structured_clinical_data(result["data"])
+        display_structured_clinical_data(result.get("data"))
         return
 
     for error in result.get("errors", []):
-        st.error(f"❌ {error}")
+        st.error(error)
     if result.get("raw_response"):
-        with st.expander("🔧 Debug: Raw LLM Response"):
+        with st.expander("Debug: raw model response"):
             st.text(result["raw_response"])
 
 
-def _render_section_heading(icon, title):
-    """Render one structured-data section heading."""
-    st.markdown(
-        '<div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.8rem;">'
-        f'<span style="font-size:1.1rem;">{icon}</span>'
-        f'<span style="font-size:1.05rem; font-weight:700; color:#0f2b4a;">{title}</span>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
+def _age_text(value):
+    """Format age without inventing a value when it is absent."""
+    if value is None:
+        return None
+    return f"{value} years"
 
 
-def _render_metric_card(label, value):
-    """Render one small centered value card."""
-    st.markdown(
-        '<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; '
-        'padding:0.8rem 1rem; text-align:center;">'
-        f'<div style="font-size:0.7rem; font-weight:600; color:#64748b; '
-        f'text-transform:uppercase; letter-spacing:0.5px;">{label}</div>'
-        f'<div style="font-size:0.9rem; font-weight:600; color:#0f2b4a; margin-top:0.2rem;">'
-        f"{value}</div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-
-def _render_patient_information(data):
-    """Show the patient name, age, and gender cards."""
-    _render_section_heading("👤", "Patient Information")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        value = data.get("patient_name")
-        st.metric(label="Patient Name", value=value if value else "Not found")
-
-    with col2:
-        value = data.get("age")
-        st.metric(
-            label="Age", value=f"{value} years" if value is not None else "Not found"
-        )
-
-    with col3:
-        value = data.get("gender")
-        st.metric(label="Gender", value=value if value else "Not found")
-
-    st.markdown("---")
-
-
-def _render_cancer_information(data):
-    """Show diagnosis, cancer type, stage, and ECOG score."""
-    _render_section_heading("🧬", "Cancer Information")
-
-    diagnosis = data.get("diagnosis")
-    st.markdown(
-        '<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; '
-        'padding:1rem 1.2rem; margin-bottom:0.8rem;">'
-        '<div style="font-size:0.75rem; font-weight:600; color:#64748b; '
-        'text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.3rem;">Diagnosis</div>'
-        f'<div style="font-size:0.95rem; color:#0f2b4a; font-weight:500;">'
-        f'{diagnosis if diagnosis else "Not found"}</div>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        _render_metric_card("Cancer Type", data.get("cancer_type") or "Not found")
-    with col2:
-        _render_metric_card("Cancer Stage", data.get("cancer_stage") or "Not found")
-    with col3:
-        ecog_score = data.get("ecog_score")
-        _render_metric_card(
-            "ECOG Score", str(ecog_score) if ecog_score is not None else "Not found"
-        )
-
-    st.markdown("---")
-
-
-def _render_biomarkers(data):
-    """Show each extracted biomarker in its own column."""
-    _render_section_heading("🔬", "Biomarkers")
-
-    biomarkers = data.get("biomarkers")
-    if not biomarkers:
-        st.info("No biomarker information found in the documents.")
-        st.markdown("---")
+def _render_field_conflicts(fields, conflict_fields):
+    """Flag fields that the conflict detector reported for this record."""
+    if not conflict_fields:
         return
-
-    biomarker_columns = st.columns(len(biomarkers))
-    for index, biomarker in enumerate(biomarkers):
-        with biomarker_columns[index]:
-            st.markdown(f"**{biomarker.get('name', 'Unknown')}**")
-            st.markdown(f"Value: {biomarker.get('value', 'N/A')}")
-            st.markdown(f"Status: {biomarker.get('status', 'N/A')}")
-
-    st.markdown("---")
+    matched = [get_field_label(field) for field in fields if field in conflict_fields]
+    if matched:
+        render_pills([(f"Conflict reported: {', '.join(matched)}", "warn")])
 
 
-def _render_treatment_information(data):
-    """Show current medication and previous treatment."""
-    _render_section_heading("💊", "Treatment Information")
+def display_structured_clinical_data(data, show_export=True, conflict_fields=None):
+    """Display clinical data as the sections used by the patient record.
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Current Medication**")
-        st.info(data.get("current_medication") or "Not found")
-    with col2:
-        st.markdown("**Previous Treatment**")
-        st.info(data.get("previous_treatment") or "Not found")
-
-    st.markdown("---")
-
-
-def _render_plan(data):
-    """Show the follow-up plan and next steps."""
-    _render_section_heading("📋", "Plan")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Follow-up Plan**")
-        st.info(data.get("follow_up_plan") or "Not found")
-    with col2:
-        st.markdown("**Next Steps**")
-        st.info(data.get("next_steps") or "Not found")
-
-
-def _render_raw_json_export(data):
-    """Show the raw JSON export block."""
-    _gradient_divider("1.5rem 0 1rem 0")
-    st.markdown(
-        '<div style="font-size:0.95rem; font-weight:700; color:#0f2b4a; margin-bottom:0.5rem;">📥 Export Data</div>',
-        unsafe_allow_html=True,
-    )
-
-    with st.expander("View Raw JSON"):
-        st.code(json.dumps(data, indent=2), language="json")
-
-
-def display_structured_clinical_data(data, show_export=True):
-    """
-    Display extracted clinical data in professional cards.
-
-    Section order is preserved from the original layout: patient, cancer,
-    biomarkers, treatment, plan, then the JSON export.
+    The same renderer is used by the legacy extraction view and by the
+    Patient Record workspace, so the two can never drift apart.  When
+    ``conflict_fields`` is supplied, affected fields are flagged inline.
     """
     if data is None:
         st.warning("No clinical data was extracted.")
         return
 
-    _render_patient_information(data)
-    _render_cancer_information(data)
-    _render_biomarkers(data)
-    _render_treatment_information(data)
-    _render_plan(data)
+    conflict_fields = set(conflict_fields or ())
+
+    render_section("Patient Information")
+    render_metric_grid(
+        [
+            {"label": "Patient Name", "value": data.get("patient_name")},
+            {"label": "Age", "value": _age_text(data.get("age"))},
+            {"label": "Gender", "value": data.get("gender")},
+        ]
+    )
+    _render_field_conflicts(("patient_name", "age", "gender"), conflict_fields)
+
+    render_section("Diagnosis & Cancer Stage")
+    render_text_blocks([{"label": "Diagnosis", "value": data.get("diagnosis")}])
+    render_metric_grid(
+        [
+            {"label": "Cancer Type", "value": data.get("cancer_type")},
+            {"label": "Cancer Stage", "value": data.get("cancer_stage")},
+        ]
+    )
+    _render_field_conflicts(
+        ("diagnosis", "cancer_type", "cancer_stage"), conflict_fields
+    )
+
+    render_section(
+        "Biomarkers & Test Results",
+        "Values are shown exactly as documented; no interpretation is added.",
+    )
+    render_biomarkers(data.get("biomarkers") or [])
+    _render_field_conflicts(("biomarkers",), conflict_fields)
+
+    render_section("Current Medication")
+    render_text_blocks(
+        [{"label": "Current Medication", "value": data.get("current_medication")}]
+    )
+    _render_field_conflicts(("current_medication",), conflict_fields)
+
+    render_section("Previous Treatment")
+    render_text_blocks(
+        [{"label": "Previous Treatment", "value": data.get("previous_treatment")}]
+    )
+    _render_field_conflicts(("previous_treatment",), conflict_fields)
+
+    render_section("ECOG Performance Status")
+    render_metric_grid(
+        [{"label": "ECOG Score", "value": data.get("ecog_score")}]
+    )
+    _render_field_conflicts(("ecog_score",), conflict_fields)
+
+    render_section("Follow-up Plan & Next Steps")
+    render_text_blocks(
+        [
+            {"label": "Follow-up Plan", "value": data.get("follow_up_plan")},
+            {"label": "Next Steps", "value": data.get("next_steps")},
+        ]
+    )
+    _render_field_conflicts(("follow_up_plan", "next_steps"), conflict_fields)
+
+    render_section("Adverse Events")
+    render_text_blocks([{"label": "Adverse Events", "value": data.get("adverse_events")}])
+    _render_field_conflicts(("adverse_events",), conflict_fields)
 
     if show_export:
         _render_raw_json_export(data)
+
+
+def _render_raw_json_export(data):
+    """Show the raw JSON export block for the legacy extraction view."""
+    render_section("Export")
+    with st.expander("View raw JSON"):
+        st.code(json.dumps(data, indent=2, ensure_ascii=False), language="json")

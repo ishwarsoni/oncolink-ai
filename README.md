@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/offline%20tests-365%20passing-2ea44f)](scripts/)
+[![Tests](https://img.shields.io/badge/offline%20tests-406%20passing-2ea44f)](scripts/)
 [![License](https://img.shields.io/badge/license-educational%20use%20only-6b7280)](#license-and-disclaimer)
 
 > **Not a medical device.** OncoLink is educational and demonstration software.
@@ -229,13 +229,15 @@ oncolink-ai-master/
 │   └── devcontainer.json        # Python 3.11 dev container (port 8501)
 │
 ├── ui/                          # Streamlit presentation layer
-│   ├── styles.py                # Page config, CSS, dividers, footer
+│   ├── styles.py                # Page config, theme-aware CSS, dividers, footer
+│   ├── components.py            # Shared theme-aware clinical renderers
 │   ├── session.py               # Logging, session state, service cache, API keys
 │   ├── sidebar.py               # Branding, API status, patient-case controls
-│   ├── upload.py                # Uploader, ingestion trigger, extracted text
-│   ├── extraction.py            # Extraction controls + structured-data cards
+│   ├── upload.py                # Intake, uploaded documents, extracted text
+│   ├── extraction.py            # Extraction controls + structured-data sections
 │   ├── harmonization.py         # Harmonization, conflicts, summary, exports
-│   ├── rag.py                   # RAG assistant rendering + chat state
+│   ├── patient_record.py        # Patient Record workspace (provenance, conflicts)
+│   ├── rag.py                   # AI Clinical Chat rendering + chat state
 │   └── export.py                # Shared PDF/text export helpers
 │
 ├── application/                 # Workflows and orchestration (no Streamlit)
@@ -304,7 +306,8 @@ oncolink-ai-master/
 | `backend/conflict_detector.py` | Compares per-document extractions and reports disagreements before merging hides them. |
 | `backend/rag_indexer.py` | Builds chunk/embed/store indexing and the RAG component bundle. |
 | `infrastructure/llm.py` | The only module that reads the API key and constructs the NVIDIA client. |
-| `ui/rag.py` | Renders retrieval controls, index status, chat history, citations, and evidence; delegates workflows to `application/`. |
+| `ui/patient_record.py` | Renders the structured record, missing values, provenance, conflicts and exports from session state; delegates extraction/harmonization to `application/`. |
+| `ui/rag.py` | Renders AI Clinical Chat: retrieval controls, index status, chat history, citations, and evidence; delegates workflows to `application/`. |
 
 ---
 
@@ -424,23 +427,50 @@ maximum upload size is 50 MB per file (`.streamlit/config.toml`).
 2. **Upload documents.** Select one or more PDF, DOCX, or TXT files.
 3. **Process documents.** Extract text and page numbers. PDFs keep 1-based page
    numbers; DOCX and TXT report pages as unavailable rather than inventing one.
-4. **Run extraction.** The application performs a combined extraction plus a
-   per-document pass (one LLM call per document), then validates and normalizes
-   the results. The combined record is rendered as structured cards;
-   per-document results are retained for harmonization and conflict detection.
+4. **Run extraction in Patient Record.** The application performs a combined
+   extraction plus a per-document pass (one LLM call per document), then
+   validates and normalizes the results. The combined record is rendered as
+   structured sections; per-document results are retained for harmonization and
+   conflict detection.
 5. **Run harmonization.** Merge the per-document records, review detected
-   conflicts, read the generated summary, and export the results as PDF. The
-   harmonized JSON remains available in the UI.
-6. **Index documents for RAG (optional).** Build or update the patient-scoped
-   vector index manually, or let the assistant build it automatically the first
-   time a question is asked. Unchanged documents are skipped; changed documents
-   are re-indexed.
-7. **Ask questions.** Use the chat input in the *Clinical RAG Assistant*
-   section. Review the answer, sources, retrieved evidence, and any reported
-   contradictions. Answer generation requires a configured NVIDIA key; the
-   index itself can be built without one.
+   conflicts inline and in the conflict panel, inspect field-level provenance,
+   read the generated summary, and export the record as PDF or JSON.
+6. **Inspect Uploaded Documents.** Review the canonical document list, the raw
+   extracted text, and the page boundaries used by citations. Additional files
+   can be added without leaving the case.
+7. **Ask questions in AI Clinical Chat.** Use the chat input or a suggested
+   question. Review the grounded answer, source citations with filename and page
+   when available, expandable retrieved evidence, and any contradiction or
+   insufficient-evidence indicators. Answer generation requires a configured
+   NVIDIA key; the index itself can be built without one.
 8. **Manage the case.** Start a new case, clear the chat, or delete all indexed
-   data for the current case from the sidebar and RAG panel.
+   data for the current case from the sidebar and chat settings.
+
+### Workspace views
+
+After documents are processed, the workspace offers three views that share one
+patient case and one canonical `ClinicalDocument` set:
+
+- **Patient Record** — sections for patient information, diagnosis and stage,
+  biomarkers and test results, current medication, previous treatment, ECOG
+  status, follow-up and next steps, adverse events, document sources and
+  field-level provenance, and conflicts and warnings. Missing values read
+  `Not documented`; conflicts show every recorded source value and an inline
+  field flag rather than selecting one silently. PDF and JSON exports remain
+  available.
+- **AI Clinical Chat** — chat history and input, six suggested questions,
+  evidence-grounded answers, validated filename/page citations, expandable
+  retrieved evidence, contradiction and insufficient-evidence indicators, and
+  a clear-chat control. Hybrid/semantic mode, top-k, reranking, similarity
+  threshold, index status, rebuild, and scoped index deletion live in collapsed
+  settings so they do not crowd the conversation.
+- **Uploaded Documents** — the canonical document list, extracted text, page
+  availability, and an expandable intake for additional files.
+
+Switching views never re-uploads, re-parses, or re-indexes a document. Case
+reset, chat clearing, and index deletion keep their existing behavior. The
+stylesheet uses Streamlit theme variables, so light and dark themes and narrow
+layouts stay readable.
 
 ### Example questions
 
@@ -455,7 +485,7 @@ maximum upload size is 50 MB per file (`.streamlit/config.toml`).
 
 ### Retrieval controls
 
-The UI exposes:
+The *Chat & retrieval settings* panel exposes:
 
 - **Retrieval mode** — hybrid (semantic + BM25) or semantic only.
 - **Top-k** — number of evidence chunks kept (default 5).
@@ -463,6 +493,9 @@ The UI exposes:
 - **Minimum cosine similarity** — `-1` disables thresholding.
 - **Rebuild from scratch** — re-index all documents even when content hashes
   match.
+
+The adjacent *Index controls* panel shows the current case's indexed documents
+and chunk count, and contains build/update and scoped deletion controls.
 
 Scores are retrieval scores, not calibrated confidence or probability of
 correctness. Raw ChromaDB cosine distance is converted to cosine similarity
@@ -740,7 +773,7 @@ python scripts/test_workflow.py
 python scripts/test_app_smoke.py
 ```
 
-The twelve suites contain **365 checks**, all passing:
+The twelve suites contain **406 checks**, all passing:
 
 | Suite | Checks | Coverage |
 |---|---:|---|
@@ -755,7 +788,7 @@ The twelve suites contain **365 checks**, all passing:
 | `test_regression_existing.py` | 52 | Extraction, harmonization, conflict, summary, and export regressions |
 | `test_architecture.py` | 30 | Layer boundaries, model configuration, compatibility shims, UI surface |
 | `test_workflow.py` | 47 | Single read, shared IDs/pages, incremental indexing, isolation, branch independence, lazy loading |
-| `test_app_smoke.py` | 12 | Real `app.py` render via AppTest, exports |
+| `test_app_smoke.py` | 53 | Real `app.py` render via AppTest, three workspace views, record sections/provenance/conflicts, chat rendering/clearing, case reset, exports |
 
 `test_embeddings.py` includes one optional real-model check that is skipped
 unless `ONCOLINK_TEST_REAL_MODELS=1` is set.

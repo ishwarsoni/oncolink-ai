@@ -282,6 +282,12 @@ Uploaded files ───►│ application.ingestion       │
 `ui/session.py::get_intelligence_service` caches the service per patient case
 and rebuilds it when the case ID changes.
 
+The UI presents three workspace views over that one cached service: Patient
+Record reads extraction/harmonization results from session state, AI Clinical
+Chat calls `service.ask` against the patient-scoped index, and Uploaded
+Documents renders the canonical display records. View switching does not
+re-ingest documents or reset either stage status.
+
 ---
 
 ## 9. Configuration and model management
