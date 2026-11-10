@@ -14,7 +14,7 @@ if not key or key == "nvapi-your-key-here":
     print("API key not configured. Set it in .env file.")
     sys.exit(1)
 
-print(f"API Key loaded: {key[:15]}...")
+print(f"API Key loaded (length: {len(key)}, value not printed)")
 
 from backend.document_loader import process_uploaded_file
 

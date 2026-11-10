@@ -227,6 +227,29 @@ python scripts/test_rag_integration.py
 
 Never report a skipped or blocked check as passed. Record the exact state.
 
+### Live verification suites
+
+These suites call the real NVIDIA endpoint and are never part of the offline
+suite. They refuse to run unless live testing is explicitly enabled, and they
+never print the API key.
+
+```powershell
+$env:ONCOLINK_TEST_LIVE = "1"
+
+python scripts/test_live_nvidia.py      # connectivity, extraction, harmonization, errors
+python scripts/test_live_rag.py         # real answers, citations, pages, insufficient evidence
+python scripts/test_live_isolation.py   # two cases, updates, deletion, branch independence
+
+# Real cross-encoder; downloads only when explicitly allowed.
+$env:ONCOLINK_PROVISION_RERANKER = "1"
+python scripts/test_live_reranker.py
+```
+
+`test_live_rag.py` includes two citation-validation checks that feed a
+hand-written payload to the validator while using real retrieval. They prove
+that fabricated citations are rejected; they are labelled in the output and
+must not be reported as model output.
+
 ### What the new suites cover
 
 `scripts/test_workflow.py`:
