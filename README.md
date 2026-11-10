@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/offline%20tests-406%20passing-2ea44f)](scripts/)
+[![Tests](https://img.shields.io/badge/offline%20tests-408%20passing-2ea44f)](scripts/)
 [![License](https://img.shields.io/badge/license-educational%20use%20only-6b7280)](#license-and-disclaimer)
 
 > **Not a medical device.** OncoLink is educational and demonstration software.
@@ -773,7 +773,7 @@ python scripts/test_workflow.py
 python scripts/test_app_smoke.py
 ```
 
-The twelve suites contain **406 checks**, all passing:
+The twelve suites contain **408 checks**, all passing:
 
 | Suite | Checks | Coverage |
 |---|---:|---|
@@ -788,7 +788,7 @@ The twelve suites contain **406 checks**, all passing:
 | `test_regression_existing.py` | 52 | Extraction, harmonization, conflict, summary, and export regressions |
 | `test_architecture.py` | 30 | Layer boundaries, model configuration, compatibility shims, UI surface |
 | `test_workflow.py` | 47 | Single read, shared IDs/pages, incremental indexing, isolation, branch independence, lazy loading |
-| `test_app_smoke.py` | 53 | Real `app.py` render via AppTest, three workspace views, record sections/provenance/conflicts, chat rendering/clearing, case reset, exports |
+| `test_app_smoke.py` | 55 | Real `app.py` render via AppTest, three workspace views, processed-but-unextracted state, record sections/provenance/conflicts, chat rendering/clearing, case reset, exports |
 
 `test_embeddings.py` includes one optional real-model check that is skipped
 unless `ONCOLINK_TEST_REAL_MODELS=1` is set.

@@ -189,7 +189,7 @@ python scripts/test_workflow.py
 python scripts/test_app_smoke.py
 ```
 
-Expected result: **406 passed, 0 failed**. No API key, model download or
+Expected result: **408 passed, 0 failed**. No API key, model download or
 network access is required.
 
 Legacy phase scripts are also available:
@@ -277,6 +277,7 @@ must not be reported as model output.
 
 - the real `app.py` renders via `streamlit.testing.v1.AppTest`
 - the first-run intake and all three workspace views render
+- a processed case with no extraction result still renders without crashing
 - navigation preserves the active case and processed documents
 - the structured record shows every section, missing values, provenance and conflicts
 - chat history, citations, contradiction indicators and clear-chat render
@@ -358,7 +359,7 @@ populated. DOCX/TXT intentionally report “Page not available”.
 ### Definition of done
 
 1. The change is in the correct layer.
-2. Offline suites still pass (406 checks).
+2. Offline suites still pass (408 checks).
 3. New behavior has a regression check.
 4. Documentation (`README.md`, `ARCHITECTURE.md` if boundaries changed) is updated.
 5. No secrets, logs, vector data or `.env` files are staged.

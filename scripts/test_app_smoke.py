@@ -102,9 +102,31 @@ app.session_state["processed_files"] = [
     },
 ]
 app.session_state["processing_done"] = True
+
+# This is the state the deployed build crashed on: documents have been
+# processed, and ingestion explicitly cleared any previous extraction results.
+for key in (
+    "extraction_result",
+    "extraction_done",
+    "harmonized_data",
+    "conflicts",
+    "summary",
+):
+    app.session_state[key] = None
+app.session_state["harmonization_done"] = False
 app.run()
 
 check("Page still runs after upload state", not app.exception, app.exception)
+check(
+    "Processed case with no extraction result renders",
+    not app.exception,
+    app.exception,
+)
+check(
+    "Extraction call-to-action is available",
+    "Run AI extraction" in button_labels(app),
+    button_labels(app),
+)
 check(
     "Patient Record view is the default",
     app.session_state["workspace_view"] == "Patient Record",
